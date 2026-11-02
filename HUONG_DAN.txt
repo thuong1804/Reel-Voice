@@ -1,0 +1,24 @@
+REEL VOICE — BẢN WINDOWS
+
+1. Bấm đúp Mo_ReelVoice.cmd. Máy cần Python 3.10+ có tkinter.
+2. Dán kịch bản hoặc chọn Nhập TXT / SRT (UTF-8).
+3. Chọn giọng: Việt Nam Minh / Hoài My hoặc giọng Anh.
+4. Tốc độ -5% là điểm bắt đầu. Cao độ 0 Hz.
+5. Bấm Tạo mẫu nghe thử, sau đó Xuất toàn bộ MP3 + SRT.
+6. Mở thư mục xuất. Nhập MP3 và SRT vào CapCut, xếp clip Flow theo lời đọc.
+
+Mỗi lần tạo có tên riêng, không ghi đè bản trước.
+SRT sử dụng mốc câu từ dịch vụ TTS, không ước lượng theo số chữ.
+SRT đầu vào chỉ lấy nội dung; thời gian được tạo lại theo âm thanh mới.
+Đây là bản một kịch bản mỗi lượt, chưa có xử lý hàng loạt nhiều tệp.
+
+MIỄN PHÍ VÀ GIỚI HẠN
+Không cần tài khoản hoặc API key ElevenLabs. Không có giọng ElevenLabs,
+voice cloning hay điều khiển stability/style như trong ảnh mẫu.
+Dùng thư viện cộng đồng edge-tts để gọi dịch vụ đọc trực tuyến Microsoft.
+Cần Internet; nội dung kịch bản được gửi tới dịch vụ Microsoft để tổng hợp.
+Không cam kết dịch vụ miễn phí/vô hạn hoặc ổn định lâu dài.
+Quyền sử dụng âm thanh phụ thuộc điều khoản dịch vụ; công cụ không cấp thêm quyền.
+Không đảm bảo khớp đúng 60 giây. Nghe và chỉnh tốc độ/kịch bản rồi tạo lại.
+
+Nguồn thư viện và hướng dẫn: https://github.com/rany2/edge-tts

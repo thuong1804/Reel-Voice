@@ -1,0 +1,13 @@
+SCENE 01 — 00:00–00:06 | Mở đầu: bị thương giữa thời tiền sử
+
+IMAGE PROMPT
+Vertical 9:16. Hand-drawn 2D educational cartoon, thick slightly irregular black outlines, flat earthy colors, simple thin limbs, large expressive faces, minimal prehistoric backgrounds. Match the exact drawing style of the provided reference image. Clear readable silhouettes and consistent character proportions. Main action fills the middle of the frame. Keep the lower fifth uncluttered for subtitles added later. No text, no captions, no watermark, no graphic injury, no blood.
+
+For prehistoric reconstruction scenes, use the same two fictional adults from the reference: A is the brown-haired bearded man wearing a ragged tan hide tunic; B is the black-haired woman with a tied-up ponytail wearing an ochre hide tunic. Preserve their faces, hairstyles and clothes. A represents recovery after an old injury: the lower part of his LEFT leg is absent, with a completely healed rounded stump, no open wound. His right leg is intact. Do not switch sides or regrow the missing limb. These are fictional visual stand-ins, not portraits of the actual archaeological individual. Modern archaeologists only appear in excavation scenes.
+
+Character A sits leaning against a rock outside a prehistoric cave at dusk. His healed left lower-limb stump is visible below the tunic, while his intact right foot rests on the ground. His hands rest on the rock beside him. He looks worried and isolated. Character B is not present. Medium-wide shot, distant empty forest, no modern objects.
+
+VIDEO PROMPT
+A looks slowly to his left, then to his right, searching for help. His shoulders sink and his eyebrows lift with worry. His hands remain supported on the rock and his legs keep their original positions. Gentle camera push toward his face. Target edit length: 6 seconds.
+
+One continuous 2D animated shot. Preserve the input image's character identities, clothing, limb arrangement and hand-drawn style. Keep movements simple and physically coherent. Maintain the same missing left lower limb whenever character A is present. No new characters or props appearing suddenly. No scene cuts, no dialogue, no narration, no music, no subtitles, no text. Optional quiet environmental ambience only.

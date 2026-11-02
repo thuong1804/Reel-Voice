@@ -1,0 +1,13 @@
+SCENE 07 — 00:33–00:38 | Thời đồ đá
+
+IMAGE PROMPT
+Vertical 9:16. Hand-drawn 2D educational cartoon, thick slightly irregular black outlines, flat earthy colors, simple thin limbs, large expressive faces, minimal prehistoric backgrounds. Match the exact drawing style of the provided reference image. Clear readable silhouettes and consistent character proportions. Main action fills the middle of the frame. Keep the lower fifth uncluttered for subtitles added later. No text, no captions, no watermark, no graphic injury, no blood.
+
+For prehistoric reconstruction scenes, use the same two fictional adults from the reference: A is the brown-haired bearded man wearing a ragged tan hide tunic; B is the black-haired woman with a tied-up ponytail wearing an ochre hide tunic. Preserve their faces, hairstyles and clothes. A represents recovery after an old injury: the lower part of his LEFT leg is absent, with a completely healed rounded stump, no open wound. His right leg is intact. Do not switch sides or regrow the missing limb. These are fictional visual stand-ins, not portraits of the actual archaeological individual. Modern archaeologists only appear in excavation scenes.
+
+Wide view of a fictional prehistoric camp near a limestone cave in a tropical forest. A small fire, simple hide shelters, woven baskets and rough stones are visible. A sits on a low rock with his healed left lower-limb stump visible. B stands nearby. No metal, no wheels, no modern medical equipment.
+
+VIDEO PROMPT
+The fire flickers and a light breeze moves the leaves. A glances toward B while B turns slightly toward him. Gentle lateral camera drift establishes the camp. No one handles any wound. Target edit length: 5 seconds.
+
+One continuous 2D animated shot. Preserve the input image's character identities, clothing, limb arrangement and hand-drawn style. Keep movements simple and physically coherent. Maintain the same missing left lower limb whenever character A is present. No new characters or props appearing suddenly. No scene cuts, no dialogue, no narration, no music, no subtitles, no text. Optional quiet environmental ambience only.

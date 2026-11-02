@@ -1,0 +1,13 @@
+SCENE 09 — 00:43–00:49 | Chưa biết chính xác cách điều trị
+
+IMAGE PROMPT
+Vertical 9:16. Hand-drawn 2D educational cartoon, thick slightly irregular black outlines, flat earthy colors, simple thin limbs, large expressive faces, minimal prehistoric backgrounds. Match the exact drawing style of the provided reference image. Clear readable silhouettes and consistent character proportions. Main action fills the middle of the frame. Keep the lower fifth uncluttered for subtitles added later. No text, no captions, no watermark, no graphic injury, no blood.
+
+For prehistoric reconstruction scenes, use the same two fictional adults from the reference: A is the brown-haired bearded man wearing a ragged tan hide tunic; B is the black-haired woman with a tied-up ponytail wearing an ochre hide tunic. Preserve their faces, hairstyles and clothes. A represents recovery after an old injury: the lower part of his LEFT leg is absent, with a completely healed rounded stump, no open wound. His right leg is intact. Do not switch sides or regrow the missing limb. These are fictional visual stand-ins, not portraits of the actual archaeological individual. Modern archaeologists only appear in excavation scenes.
+
+The modern archaeologist kneels beside the excavation inside the limestone cave, holding a blank field notebook on one knee and looking thoughtfully at the remains. A pencil rests still in their hand. No treatment equipment, no invented ancient remedies, no visible writing in the notebook.
+
+VIDEO PROMPT
+The archaeologist looks from the bones to the blank notebook, pauses with the pencil above the page, then looks back at the remains thoughtfully. Keep the page blank. No reconstruction of surgery, bleeding control or herbal treatment. Target edit length: 6 seconds.
+
+One continuous 2D animated shot. Preserve the input image's character identities, clothing, limb arrangement and hand-drawn style. Keep movements simple and physically coherent. Maintain the same missing left lower limb whenever character A is present. No new characters or props appearing suddenly. No scene cuts, no dialogue, no narration, no music, no subtitles, no text. Optional quiet environmental ambience only.

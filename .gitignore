@@ -1,0 +1,28 @@
+# Local Python environments
+/.venv-vieneu/
+/.venv/
+/venv/
+
+# Downloaded models, caches and machine-local readiness marker
+/models/
+/.vieneu_ready
+/work/
+__pycache__/
+*.py[cod]
+
+# Rendered video, logs and temporary files
+/outputs/video/
+*.log
+*.log.txt
+*.job.json
+*.part
+*.bak
+
+# Local credentials; keep only an example configuration
+.env
+.env.*
+!.env.example
+
+# Audio is intentionally versioned:
+# outputs/audio/*.mp3, *.wav, *.srt and narration *.txt are NOT ignored.
+# Scripts and prompts in outputs/scripts and outputs/prompts are also kept.

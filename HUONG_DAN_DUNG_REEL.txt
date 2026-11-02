@@ -1,0 +1,34 @@
+REEL VOICE 1.7 — DỰNG REEL TỪ ẢNH
+
+1. Mở Reel Voice bằng shortcut Desktop. Bấm Dựng Reel từ ảnh.
+2. Chọn MP3 / WAV. Nếu có SRT cùng tên, ứng dụng tự chọn.
+3. Thêm ảnh. Đặt tên 01.png, 02.png... để xếp đúng thứ tự.
+4. Mặc định ảnh được chia đều theo thời lượng MP3. Kiểm tra và sửa từng cảnh.
+5. Chọn cảnh trong bảng: sửa số giây, chọn Zoom gần / Zoom xa / Lia / Đứng yên,
+   sửa lời đọc hoặc ghi chú, rồi bấm Lưu chỉnh sửa ảnh.
+6. Có thể chuyển ảnh lên/xuống. Sau khi xóa ảnh, cần căn lại thời lượng.
+7. Nhập prompt có mốc nếu có: [00:00] nội dung... Mỗi ảnh tương ứng một prompt.
+   Số ảnh và số prompt phải bằng nhau; nếu không ứng dụng sẽ báo để bạn sửa.
+8. Chọn Giữ trọn ảnh (có thể có viền tối) hoặc Lấp đầy khung (cắt mép ảnh).
+9. Nhạc nền là tùy chọn, mặc định âm lượng 12%. Có thể xóa đường dẫn để bỏ nhạc.
+10. Xem thử 12 giây ở 360x640 trước, rồi Xuất MP4 1080x1920.
+
+OUTPUT: D:\ReelVoice\outputs\video
+Mỗi lượt có tên riêng, gồm MP4, dự án JSON và file log.
+Lưu dự án/Mở dự án để tiếp tục chỉnh sau. Dự án tham chiếu ảnh và âm thanh gốc;
+không di chuyển/xóa các file đó nếu còn cần mở lại dự án.
+
+PHỤ ĐỀ
+Chọn SRT để in phụ đề lên video. Nếu không chọn SRT thì không có phụ đề.
+Các câu dài được chia thành các trang tối đa 2 dòng, thời gian chia theo lượng chữ;
+đây không phải căn thời gian chính xác từng từ.
+
+PROMPT
+Prompt gợi ý zoom/lia bằng từ khóa; bạn có thể chọn lại chuyển động trong bảng.
+Tool không dùng AI để hiểu nội dung ảnh, không đổi tư thế hoặc thêm đồ vật.
+Căn đều không có nghĩa ảnh đã khớp ngữ nghĩa lời đọc: bạn cần kiểm tra bảng cảnh.
+Các hình ảnh giữ nguyên nội dung, chỉ thay góc cắt/zoom/lia trên khung hình.
+
+Không cần API, không cần Internet, không phí theo lượt. Dùng FFmpeg trên máy.
+
+Lưu chỉnh sửa ảnh không bắt đầu dựng video. Bấm Dựng thử 12 giây hoặc Bắt đầu xuất MP4 để chạy.

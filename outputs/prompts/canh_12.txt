@@ -1,0 +1,13 @@
+SCENE 12 — 01:03–01:05 | Mang thức ăn
+
+IMAGE PROMPT
+Vertical 9:16. Hand-drawn 2D educational cartoon, thick slightly irregular black outlines, flat earthy colors, simple thin limbs, large expressive faces, minimal prehistoric backgrounds. Match the exact drawing style of the provided reference image. Clear readable silhouettes and consistent character proportions. Main action fills the middle of the frame. Keep the lower fifth uncluttered for subtitles added later. No text, no captions, no watermark, no graphic injury, no blood.
+
+For prehistoric reconstruction scenes, use the same two fictional adults from the reference: A is the brown-haired bearded man wearing a ragged tan hide tunic; B is the black-haired woman with a tied-up ponytail wearing an ochre hide tunic. Preserve their faces, hairstyles and clothes. A represents recovery after an old injury: the lower part of his LEFT leg is absent, with a completely healed rounded stump, no open wound. His right leg is intact. Do not switch sides or regrow the missing limb. These are fictional visual stand-ins, not portraits of the actual archaeological individual. Modern archaeologists only appear in excavation scenes.
+
+Close two-person shot at the camp: B holds one wooden bowl of soft food close to A's outstretched hands, ready to hand it over. A is seated, B is kneeling. Keep both pairs of hands clearly visible and the bowl centered. Same reference characters and clothing.
+
+VIDEO PROMPT
+B moves the bowl a short distance into A's waiting hands. A securely holds it; only then does B release it. One simple handoff, no eating or other actions. Static camera. Use approximately 2 seconds of the successful handoff in the edit.
+
+One continuous 2D animated shot. Preserve the input image's character identities, clothing, limb arrangement and hand-drawn style. Keep movements simple and physically coherent. Maintain the same missing left lower limb whenever character A is present. No new characters or props appearing suddenly. No scene cuts, no dialogue, no narration, no music, no subtitles, no text. Optional quiet environmental ambience only.

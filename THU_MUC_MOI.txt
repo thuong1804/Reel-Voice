@@ -1,0 +1,27 @@
+REEL VOICE — BỐ TRÍ TRÊN Ổ D
+
+Thư mục chính: D:\ReelVoice
+
+MÃ NGUỒN
+reel_voice.py: cửa sổ ứng dụng, lựa chọn giọng và điều phối tác vụ.
+vieneu_runner.py: tạo giọng Việt bằng VieNeu v3.
+vieneu_voices.json: danh sách giọng từ SDK.
+Mo_Giao_Dien.vbs / Mo_ReelVoice.cmd: mở ứng dụng.
+Cai_VieNeu.cmd: cài lại SDK khi cần.
+
+KẾT QUẢ
+outputs\audio: MP3, WAV, phụ đề SRT, lời đọc TXT và log.
+outputs\scripts: kịch bản tiếng Anh gốc và hai bản Reel tiếng Việt.
+
+MODEL VÀ MÔI TRƯỜNG
+models: model đã tải, không cần tải lại.
+.venv-vieneu: môi trường Python riêng cho VieNeu.
+work: file tạm phát sinh khi chạy.
+
+Shortcut Reel Voice trên Desktop trỏ về D:\ReelVoice.
+Đóng các cửa sổ Reel Voice cũ trước khi dùng bản chuyển ổ.
+Đường dẫn xuất mặc định là D:\ReelVoice\outputs\audio.
+
+Bản ở ổ C được giữ làm bản dự phòng, chưa xóa tự động.
+Python chính vẫn nằm trong thư mục cài Python của Windows trên ổ C.
+SDK riêng, model, mã nguồn và output làm việc đều ở ổ D.

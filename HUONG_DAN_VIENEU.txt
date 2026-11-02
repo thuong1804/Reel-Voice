@@ -1,0 +1,24 @@
+REEL VOICE 1.4 — VieNeu v3 Turbo, SDK 3.8.2, 25 giọng
+
+Mở shortcut Reel Voice trên Desktop hoặc Mo_Giao_Dien.vbs.
+Chọn VieNeu v3, nhập tiếng Việt và bấm Tạo mẫu nghe thử.
+Danh sách preset hiện đầy đủ sau khi nạp model rồi mở lại ứng dụng.
+
+VieNeu chạy CPU qua ONNX, không cần API key hay phí theo lượt.
+Lần đầu cần Internet tải model vào models/huggingface.
+SDK cài riêng trong .venv-vieneu; nếu chưa cài, chạy Cai_VieNeu.cmd.
+Tải/nạp model có thể lâu hơn bước tạo giọng. Có nút Hủy.
+Mẫu thử giới hạn 10 phút, toàn bộ giới hạn 30 phút.
+Cao độ phải là 0. Tốc độ được chỉnh qua FFmpeg, giữ cao độ.
+
+Kết quả: MP3, WAV gốc, TXT, SRT cấp câu theo thời lượng âm thanh thực tế.
+MP3 là bản chỉnh tốc độ; SRT khớp MP3. WAV gốc giữ tốc độ ban đầu.
+Nếu thiếu FFmpeg, đặt tốc độ 0 để xuất WAV + SRT.
+Không đảm bảo đúng 60 giây: cần chỉnh lời hoặc tốc độ rồi tạo lại.
+Không xử lý nhiều file hàng loạt, một kịch bản mỗi lượt.
+
+Giọng Zira vẫn chạy offline. Các giọng Edge cần Internet và có thể lỗi 403.
+Thông tin VieNeu trong tài liệu này thay thế mô tả giới hạn cũ ở HUONG_DAN.txt.
+
+https://github.com/pnnbao97/VieNeu-TTS
+https://pypi.org/project/vieneu/3.8.2/
