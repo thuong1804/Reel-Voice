@@ -1,0 +1,2 @@
+# 7.3 adds the Sec-MS-GEC v2 authentication required by Edge TTS.
+edge-tts==7.3.1

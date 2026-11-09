@@ -4,6 +4,9 @@ Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 folder = fso.GetParentFolderName(WScript.ScriptFullName)
 pythonw = shell.ExpandEnvironmentStrings("%LocalAppData%") & "\Programs\Python\Python312\pythonw.exe"
+If fso.FileExists(folder & "\.venv\Scripts\pythonw.exe") Then
+  pythonw = folder & "\.venv\Scripts\pythonw.exe"
+End If
 If Not fso.FileExists(pythonw) Then
   MsgBox "Khong tim thay Python 3.12. Hay mo Mo_ReelVoice.cmd de kiem tra.", 48, "Reel Voice"
   WScript.Quit 1

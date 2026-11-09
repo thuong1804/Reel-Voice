@@ -23,6 +23,11 @@ __pycache__/
 .env.*
 !.env.example
 
-# Audio is intentionally versioned:
-# outputs/audio/*.mp3, *.wav, *.srt and narration *.txt are NOT ignored.
-# Scripts and prompts in outputs/scripts and outputs/prompts are also kept.
+# Audio files
+*.[mM][pP]3
+*.[wW][aA][vV]
+*.[mM]4[aA]
+*.[fF][lL][aA][cC]
+*.[oO][gG][gG]
+*.[aA][aA][cC]
+*.[oO][pP][uU][sS]

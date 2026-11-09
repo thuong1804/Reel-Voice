@@ -1,9 +1,16 @@
 REEL VOICE — BẢN WINDOWS
 
 1. Bấm đúp Mo_ReelVoice.cmd. Máy cần Python 3.10+ có tkinter.
+   Hai file mở ứng dụng ưu tiên Python trong .venv nếu có.
+   Khi cài máy mới: python -m venv .venv
+   Sau đó: .venv\Scripts\python.exe -m pip install -r requirements.txt
+   Giọng Edge cần edge-tts 7.3.1 để dùng xác thực mới, tránh lỗi 403 của bản cũ.
 2. Dán kịch bản hoặc chọn Nhập TXT / SRT (UTF-8).
 3. Chọn giọng: Việt Nam Minh / Hoài My hoặc giọng Anh.
 4. Tốc độ -5% là điểm bắt đầu. Cao độ 0 Hz.
+   Với Edge hoặc VieNeu, chọn Cách đọc > Kịch tính để thêm khoảng nghỉ.
+   Với VieNeu, đặt tốc độ 0% để nghe nhịp và cao độ gốc của giọng.
+   Chế độ này dùng FFmpeg và đọc thử vài câu đầu để nghe được sự thay đổi nhịp.
 5. Bấm Tạo mẫu nghe thử, sau đó Xuất toàn bộ MP3 + SRT.
 6. Mở thư mục xuất. Nhập MP3 và SRT vào CapCut, xếp clip Flow theo lời đọc.
 

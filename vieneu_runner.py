@@ -6,6 +6,8 @@ import re
 import sys
 import subprocess
 import shutil
+import unicodedata
+from expressive_voice import narration_beats
 
 BASE = Path(__file__).resolve().parent
 os.environ.setdefault('HF_HOME', str(BASE / 'models' / 'huggingface'))
@@ -40,11 +42,18 @@ def main():
     voice = job['voice']
     if voice == 'default':
         voice = voices[0][1]
-    sentences = [s.strip() for s in re.split(r'(?<=[.!?…])\s+|\n+', job['text']) if s.strip()]
+    ffmpeg = shutil.which('ffmpeg')
+    expressive = job.get('expressive', False)
+    if expressive and not ffmpeg:
+        raise RuntimeError('Cần cài FFmpeg để dùng cách đọc Kịch tính với VieNeu.')
+    beats = narration_beats(job['text'], group_regular=False) if expressive else []
+    sentences = ([beat.text for beat in beats] if expressive else
+                 [s.strip() for s in re.split(r'(?<=[.!?…])\s+|\n+', job['text']) if s.strip()])
     elapsed, subtitles, chunks = 0.0, [], []
     for i, sentence in enumerate(sentences):
         emit('progress', f'VieNeu: câu {i+1}/{len(sentences)} — {sentence[:80]}')
-        audio = np.asarray(tts.infer(sentence, voice=voice), dtype=np.float32).reshape(-1)
+        spoken_text = unicodedata.normalize('NFC', sentence)
+        audio = np.asarray(tts.infer(spoken_text, voice=voice), dtype=np.float32).reshape(-1)
         # Use SDK save to obtain the backend's actual sample rate.
         probe = target.with_suffix('.chunk.wav')
         tts.save(audio, str(probe))
@@ -56,13 +65,20 @@ def main():
         subtitles.append((elapsed, elapsed + duration, sentence))
         elapsed += duration
         chunks.append(audio)
-    wav = target.with_suffix('.wav')
-    sf.write(str(wav), np.concatenate(chunks), sample_rate, subtype='PCM_16')
+        if expressive and i + 1 < len(beats):
+            pause = round(sample_rate * beats[i].pause_ms / 1000)
+            chunks.append(np.zeros(pause, dtype=np.float32))
+            elapsed += pause / sample_rate
+    wav = target.with_suffix('.wav.part' if expressive else '.wav')
+    sf.write(str(wav), np.concatenate(chunks), sample_rate, format='WAV', subtype='PCM_16')
     speed = 1 + job['rate'] / 100
     output = wav
-    if shutil.which('ffmpeg'):
-        command = ['ffmpeg', '-y', '-v', 'error', '-i', str(wav), '-af', f'atempo={speed}',
-                   '-codec:a', 'libmp3lame', '-q:a', '2', str(target)]
+    if ffmpeg:
+        command = [ffmpeg, '-y', '-v', 'error', '-i', str(wav)]
+        if speed != 1:
+            command += ['-af', f'atempo={speed}']
+        mp3 = target.with_suffix('.mp3.part') if expressive else target
+        command += ['-codec:a', 'libmp3lame', '-q:a', '2', '-f', 'mp3', str(mp3)]
         result = subprocess.run(command, capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if result.returncode:
             raise RuntimeError(result.stderr.decode(errors='replace'))
@@ -74,6 +90,9 @@ def main():
                     for i, (start, end, text) in enumerate(subtitles))
     target.with_suffix('.srt').write_text(srt, encoding='utf-8-sig')
     target.with_suffix('.txt').write_text(job['text'], encoding='utf-8')
+    if expressive:
+        wav.unlink()
+        mp3.replace(target)
     (BASE / '.vieneu_ready').write_text('v3turbo CPU ready', encoding='utf-8')
     emit('done', str(output))
 
