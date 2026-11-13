@@ -7,7 +7,8 @@ import sys
 import subprocess
 import shutil
 import unicodedata
-from expressive_voice import narration_beats
+from expressive_voice import narration_beats, run_ffmpeg
+from story_audio import render_story
 
 BASE = Path(__file__).resolve().parent
 os.environ.setdefault('HF_HOME', str(BASE / 'models' / 'huggingface'))
@@ -43,6 +44,25 @@ def main():
     if voice == 'default':
         voice = voices[0][1]
     ffmpeg = shutil.which('ffmpeg')
+    if job.get('story_plan') is not None:
+        def render_sentence(sentence, destination):
+            audio = np.asarray(tts.infer(unicodedata.normalize('NFC', sentence), voice=voice),
+                               dtype=np.float32).reshape(-1)
+            if not audio.size:
+                raise RuntimeError('VieNeu không trả về âm thanh cho câu vừa đọc.')
+            raw = destination.with_suffix('.wav')
+            tts.save(audio, str(raw))
+            speed = 1 + job['rate'] / 100
+            if speed != 1:
+                adjusted = destination.with_suffix('.adjusted.wav')
+                run_ffmpeg(ffmpeg, ['-y', '-i', str(raw), '-af', f'atempo={speed}', str(adjusted)])
+                raw = adjusted
+            duration = sf.info(str(raw)).duration
+            return raw, [(0, duration, sentence)]
+        output = render_story(job['story_plan'], target, render_sentence,
+                              lambda value: emit('progress', value), preview=job.get('audition', False))
+        emit('done', str(output))
+        return
     expressive = job.get('expressive', False)
     if expressive and not ffmpeg:
         raise RuntimeError('Cần cài FFmpeg để dùng cách đọc Kịch tính với VieNeu.')

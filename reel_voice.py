@@ -18,7 +18,9 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from datetime import datetime
 
-from expressive_voice import cleanup_expressive, split_sentences, synthesize_expressive
+from expressive_voice import cleanup_expressive, synthesize_expressive
+from story_audio import (cleanup_story, read_cues,
+                         read_effects, render_story, script_plan, script_excerpt)
 
 BASE = Path(__file__).resolve().parent
 
@@ -47,13 +49,14 @@ try:
 except (OSError, ValueError, KeyError):
     pass
 
-def vieneu_synthesize(text, voice, rate, target, events, expressive=False):
+def vieneu_synthesize(text, voice, rate, target, events, expressive=False, plan=None, audition=False):
     interpreter = BASE / '.venv-vieneu' / 'Scripts' / 'python.exe'
     if not interpreter.exists():
         raise RuntimeError('Chưa cài VieNeu. Hãy chạy Cai_VieNeu.cmd trong thư mục ứng dụng.')
     job = target.with_suffix('.job.json')
     job.write_text(json.dumps({'text': text, 'voice': voice.split(':', 1)[1],
-                              'rate': rate, 'target': str(target), 'expressive': expressive}, ensure_ascii=False), encoding='utf-8')
+                              'rate': rate, 'target': str(target), 'expressive': expressive,
+                              'story_plan': plan, 'audition': audition}, ensure_ascii=False), encoding='utf-8')
     output = None
     try:
         with target.with_suffix('.log.txt').open('w', encoding='utf-8') as log:
@@ -83,6 +86,16 @@ def vieneu_synthesize(text, voice, rate, target, events, expressive=False):
 
 def paragraphs(text):
     return [p.strip() for p in re.split(r'\n\s*\n', text.strip()) if p.strip()]
+
+
+def transcript_text(text):
+    """Remove leading transcript timestamps and reconnect wrapped speech."""
+    text = re.sub(r'\\[ \t]*(?=\r?$)', '', text, flags=re.MULTILINE)
+    timestamp = r'^[ \t]*\[(?:\d+:)?\d{1,2}:\d{2}(?:[.,]\d{1,3})?\][ \t]*'
+    if not re.search(timestamp, text, flags=re.MULTILINE):
+        return text
+    cleaned = re.sub(timestamp, '', text, flags=re.MULTILINE)
+    return '\n\n'.join(' '.join(part.splitlines()) for part in paragraphs(cleaned))
 
 def srt_time(seconds):
     milliseconds = round(seconds * 1000)
@@ -169,10 +182,21 @@ async def synthesize(text, voice, rate, pitch, target, progress=None):
     finally:
         temporary.unlink(missing_ok=True)
 
-def worker(events, text, voice, rate, pitch, target, expressive=False):
+def worker(events, text, voice, rate, pitch, target, expressive=False, plan=None, audition=False):
     try:
         if voice.startswith('vieneu:'):
-            output = vieneu_synthesize(text, voice, rate, Path(target), events, expressive)
+            output = vieneu_synthesize(text, voice, rate, Path(target), events, expressive, plan, audition)
+        elif plan is not None:
+            def render_sentence(sentence, destination):
+                if voice.startswith('offline:'):
+                    audio = offline_synthesize(sentence, voice, rate, pitch, destination, events)
+                else:
+                    render = synthesize_expressive if expressive else synthesize
+                    asyncio.run(render(sentence, voice, rate, pitch, destination))
+                    audio = destination
+                return audio, read_cues(destination.with_suffix('.srt'))
+            output = render_story(plan, Path(target), render_sentence,
+                                  lambda value: events.put(('progress', value)), preview=audition)
         elif voice.startswith('offline:'):
             output = offline_synthesize(text, voice, rate, pitch, Path(target), events)
         else:
@@ -233,6 +257,8 @@ class App(tk.Tk):
         self.process = None
         self.busy = False
         self.last_audio = None
+        self.preview_audio = None
+        self.preview_temp = None
         self.player = AudioPlayer()
         self.folder = BASE / 'outputs' / 'audio'
         style = ttk.Style(self)
@@ -269,6 +295,16 @@ class App(tk.Tk):
         ttk.Label(delivery, text='Đổi nhịp và ngắt nghỉ với Edge và VieNeu').pack(side='left', padx=8)
         self.voice.trace_add('write', self.update_delivery)
         self.update_delivery()
+        pauses = ttk.Frame(settings)
+        pauses.grid(row=3, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
+        ttk.Label(pauses, text='Nghỉ giữa câu (giây)').pack(side='left')
+        self.sentence_pause = tk.StringVar(value='0.35')
+        ttk.Spinbox(pauses, from_=0, to=5, increment=.05, width=6,
+                    textvariable=self.sentence_pause).pack(side='left', padx=(8, 18))
+        ttk.Label(pauses, text='Nghỉ giữa đoạn (giây)').pack(side='left')
+        self.paragraph_pause = tk.StringVar(value='0.8')
+        ttk.Spinbox(pauses, from_=0, to=10, increment=.1, width=6,
+                    textvariable=self.paragraph_pause).pack(side='left', padx=8)
         toolbar = ttk.Frame(root)
         toolbar.pack(fill='x', pady=10)
         ttk.Button(toolbar, text='Nhập TXT / SRT', command=self.load).pack(side='left')
@@ -278,9 +314,18 @@ class App(tk.Tk):
         self.folder_label = ttk.Label(root, text=str(self.folder))
         self.folder_label.pack(anchor='w')
         ttk.Label(root, text='Kịch bản — dòng trống phân chia các đoạn trong bảng').pack(anchor='w', pady=(10, 4))
+        script_actions = ttk.Frame(root)
+        script_actions.pack(fill='x', pady=(4, 6))
+        self.effect_button = ttk.Button(script_actions, text='＋ Hiệu ứng / khoảng nghỉ tại con trỏ',
+                                       command=self.insert_effect)
+        self.effect_button.pack(side='left')
+        ttk.Button(script_actions, text='Lưu kịch bản…', command=self.save_script).pack(side='left', padx=8)
+        self.replay_preview = ttk.Button(script_actions, text='▶ Nghe lại đoạn thử',
+                                        command=self.play_preview, state='disabled')
+        self.replay_preview.pack(side='left')
         editor = ttk.Frame(root)
         editor.pack(fill='both', expand=True)
-        self.text = tk.Text(editor, wrap='word', font=('Segoe UI', 11), undo=True, height=10)
+        self.text = tk.Text(editor, wrap='word', font=('Segoe UI', 11), undo=True, height=10, exportselection=False)
         scroll = ttk.Scrollbar(editor, command=self.text.yview)
         self.text.configure(yscrollcommand=scroll.set)
         self.text.pack(side='left', fill='both', expand=True)
@@ -288,8 +333,9 @@ class App(tk.Tk):
         self.text.insert('1.0', 'Bạn bị thương giữa thời tiền sử. Không bệnh viện. Không xe cứu thương. Ai sẽ cứu bạn?')
         actions = ttk.Frame(root)
         actions.pack(fill='x', pady=10)
-        self.preview = ttk.Button(actions, text='▶ Tạo mẫu nghe thử', command=lambda: self.start(True))
+        self.preview = ttk.Button(actions, text='▶ Nghe đoạn đang chọn', command=lambda: self.start(True))
         self.preview.pack(side='left')
+        ttk.Label(root, text='Bôi đen phần cần nghe; nếu chưa chọn, nghe đoạn văn tại con trỏ. Có phát hiệu ứng đã chèn.').pack(anchor='w')
         self.generate = ttk.Button(actions, text='Xuất toàn bộ MP3 + SRT', command=lambda: self.start(False))
         self.generate.pack(side='left', padx=8)
         ttk.Button(actions, text='Nghe file vừa tạo', command=self.play).pack(side='left')
@@ -314,6 +360,24 @@ class App(tk.Tk):
         self.delivery_box.config(state='disabled' if offline else 'readonly')
         if offline:
             self.delivery.set('Tự nhiên')
+
+    def insert_effect(self):
+        if self.busy:
+            return
+        from sound_dialog import SoundDialog
+        try:
+            SoundDialog(self, self.text.index('insert'), BASE / 'outputs' / 'effects')
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('Không mở được thư viện hiệu ứng', str(exc))
+
+    def save_script(self):
+        name = filedialog.asksaveasfilename(defaultextension='.txt', filetypes=[('Kịch bản', '*.txt')])
+        if name:
+            try:
+                Path(name).write_text(self.text.get('1.0', 'end-1c'), encoding='utf-8')
+                self.status.set('Đã lưu kịch bản cùng dấu hiệu ứng và khoảng nghỉ.')
+            except OSError as exc:
+                messagebox.showerror('Không lưu được kịch bản', str(exc))
 
     def open_reel_editor(self):
         from reel_editor import ReelEditor
@@ -341,7 +405,15 @@ class App(tk.Tk):
         if not self.busy or messagebox.askyesno('Đang tạo âm thanh', 'Đóng ứng dụng sẽ dừng tác vụ đang chạy. Đóng ngay?'):
             self.cancel()
             self.stop_playback()
+            self.clear_preview()
             self.destroy()
+
+    def clear_preview(self):
+        self.preview_audio = None
+        self.replay_preview.config(state='disabled')
+        if self.preview_temp:
+            self.preview_temp.cleanup()
+            self.preview_temp = None
 
     def finish(self):
         self.busy = False
@@ -349,6 +421,7 @@ class App(tk.Tk):
         self.preview.config(state='normal')
         self.voice_sample.config(state='normal')
         self.generate.config(state='normal')
+        self.effect_button.config(state='normal')
         self.cancel_button.config(state='disabled')
 
     def cancel(self, timed_out=False):
@@ -359,12 +432,15 @@ class App(tk.Tk):
                 capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
             self.process.join(timeout=1)
         if not self.process or not self.process.is_alive():
+            cleanup_story(self.target)
             if self.is_expressive:
                 cleanup_expressive(self.target)
                 self.target.with_suffix('.chunk.wav').unlink(missing_ok=True)
             else:
                 self.target.with_suffix('.mp3.part').unlink(missing_ok=True)
         self.finish()
+        if self.is_preview and not self.is_voice_sample and (not self.process or not self.process.is_alive()):
+            self.clear_preview()
         self.status.set('Hết thời gian chờ dịch vụ. Kiểm tra Internet/DNS rồi thử lại.' if timed_out else 'Đã hủy. Bạn có thể thử lại.')
 
     def load(self):
@@ -379,9 +455,10 @@ class App(tk.Tk):
                 blocks = re.split(r'\n\s*\n', value.strip())
                 value = '\n\n'.join(' '.join(line.strip() for line in b.splitlines()
                     if line.strip() and not line.strip().isdigit() and '-->' not in line) for b in blocks)
+            value = transcript_text(value)
             self.text.delete('1.0', 'end')
             self.text.insert('1.0', value)
-            self.status.set('Đã nhập. SRT đầu vào chỉ lấy lời; thời gian sẽ được tạo lại theo giọng đọc.')
+            self.status.set('Đã nhập lời đọc. Mốc thời gian TXT/SRT được bỏ qua; phụ đề sẽ khớp với audio mới.')
         except Exception as exc:
             messagebox.showerror('Không nhập được', str(exc))
 
@@ -401,7 +478,11 @@ class App(tk.Tk):
         if self.last_audio and self.last_audio.exists():
             self.play_audio(self.last_audio, 'Đang phát: ' + self.last_audio.name)
         else:
-            messagebox.showinfo('Chưa có file', 'Bấm tạo mẫu nghe thử hoặc xuất toàn bộ trước.')
+            messagebox.showinfo('Chưa có file', 'Hãy xuất MP3 trước hoặc bấm Nghe lại đoạn thử để nghe bản thử gần nhất.')
+
+    def play_preview(self):
+        if not self.busy and self.preview_audio and self.preview_audio.exists():
+            self.play_audio(self.preview_audio, 'Đang nghe lại bản thử gần nhất, gồm hiệu ứng và khoảng nghỉ.')
 
     def start(self, preview, voice_sample=False):
         if self.busy:
@@ -417,7 +498,15 @@ class App(tk.Tk):
             else:
                 text = 'Hello! This is a sample of my voice. Imagine the stories we can tell together.'
         else:
-            text = self.text.get('1.0', 'end').strip()
+            text = self.text.get('1.0', 'end-1c')
+            if preview:
+                selection = self.text.tag_ranges('sel')
+                begin = selection[0] if selection else 'insert'
+                offset = self.text.count('1.0', begin, 'chars')
+                start = offset[0] if offset else 0
+                end_offset = self.text.count('1.0', selection[1], 'chars') if selection else None
+                text = script_excerpt(text, start, end_offset[0] if end_offset else None)
+            text = transcript_text(text.strip())
         if not text:
             messagebox.showwarning('Thiếu kịch bản', 'Hãy nhập kịch bản.')
             return
@@ -428,38 +517,53 @@ class App(tk.Tk):
         except ValueError:
             messagebox.showerror('Thông số chưa đúng', 'Tốc độ: -50 đến 100. Cao độ: -50 đến 50. Nhập số nguyên.')
             return
+        try:
+            sentence_pause, paragraph_pause = float(self.sentence_pause.get()), float(self.paragraph_pause.get())
+            if not (0 <= sentence_pause <= 5 and 0 <= paragraph_pause <= 10):
+                raise ValueError('Nghỉ giữa câu từ 0–5 giây, giữa đoạn từ 0–10 giây.')
+            plan = None
+            if sentence_pause or paragraph_pause or '[[' in text or (preview and not voice_sample):
+                plan = script_plan(text, sentence_pause, paragraph_pause,
+                                   read_effects(BASE / 'outputs' / 'effects'))
+                if not plan:
+                    raise ValueError('Hãy nhập lời kể hoặc chèn hiệu ứng.')
+                if not shutil.which('ffmpeg'):
+                    raise ValueError('Cần cài FFmpeg để thêm khoảng nghỉ và hiệu ứng.')
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('Khoảng nghỉ / hiệu ứng', str(exc))
+            return
         if not voice_sample:
             for row in self.table.get_children():
                 self.table.delete(row)
             for i, part in enumerate(paragraphs(text), 1):
                 self.table.insert('', 'end', values=(i, part))
+        if voice.startswith('vieneu:') and pitch:
+            messagebox.showwarning('Cao độ VieNeu', 'VieNeu dùng cao độ tự nhiên. Hãy đặt cao độ 0.')
+            return
         if preview and not voice_sample:
-            if expressive:
-                opening = []
-                remaining = 4
-                for part in paragraphs(text):
-                    sentences = split_sentences(part)[:remaining]
-                    opening.append(' '.join(sentences))
-                    remaining -= len(sentences)
-                    if not remaining:
-                        break
-                text = '\n\n'.join(opening)
-            else:
-                text = re.split(r'(?<=[.!?])\s+', text, maxsplit=1)[0]
-            if len(text) > 500:
-                text = text[:500].rsplit(' ', 1)[0]
-        folder = BASE / 'work' / 'voice_samples' if voice_sample else self.folder
+            self.clear_preview()
+            try:
+                scratch = BASE / 'work'
+                scratch.mkdir(exist_ok=True)
+                self.preview_temp = tempfile.TemporaryDirectory(prefix='audition_', dir=scratch)
+                folder = Path(self.preview_temp.name)
+            except OSError as exc:
+                messagebox.showerror('Không tạo được bản nghe thử', str(exc))
+                return
+        else:
+            folder = BASE / 'work' / 'voice_samples' if voice_sample else self.folder
         try:
             folder.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             messagebox.showerror('Thư mục xuất', str(exc))
             return
         target = folder / (('preview_' if preview else 'narration_') + datetime.now().strftime('%Y%m%d_%H%M%S_%f') + '.mp3')
-        if voice.startswith('vieneu:') and pitch:
-            messagebox.showwarning('Cao độ VieNeu', 'VieNeu dùng cao độ tự nhiên. Hãy đặt cao độ 0.')
-            return
+        if preview and not voice_sample:
+            target = folder / 'audition.wav'
         if voice_sample:
             settings = [text, voice, rate, pitch]
+            if plan is not None:
+                settings.append(['story-v1', sentence_pause, paragraph_pause])
             if expressive:
                 settings.append('vieneu-pauses-v2' if voice.startswith('vieneu:') else 'expressive-v1')
             key = hashlib.sha256(json.dumps(settings).encode('utf-8')).hexdigest()
@@ -480,19 +584,25 @@ class App(tk.Tk):
         self.timeout_seconds = (600 if preview else 1800) if voice.startswith('vieneu:') else (30 if preview else 180)
         if expressive and not voice.startswith('vieneu:'):
             self.timeout_seconds = 90 if preview else 900
+        if plan is not None:
+            self.timeout_seconds = max(self.timeout_seconds, 180 if preview else max(900, len(plan) * 30))
         self.progress_text = 'Đang nạp model / tạo giọng đọc'
         self.preview.config(state='disabled')
         self.voice_sample.config(state='disabled')
         self.generate.config(state='disabled')
+        self.effect_button.config(state='disabled')
         self.cancel_button.config(state='normal')
         self.bar.start(12)
-        self.status.set('Đang kết nối và tạo giọng đọc…')
+        self.status.set('Đang chuẩn bị đoạn nghe thử…' if preview else 'Đang kết nối và tạo giọng đọc…')
         self.process = mp.Process(target=worker,
-            args=(self.events, text, voice, rate, pitch, str(target), expressive), daemon=True)
+            args=(self.events, text, voice, rate, pitch, str(target), expressive, plan,
+                  preview and not voice_sample), daemon=True)
         try:
             self.process.start()
         except Exception as exc:
             self.finish()
+            if preview and not voice_sample:
+                self.clear_preview()
             messagebox.showerror('Không khởi chạy được', str(exc))
 
     def play_voice_sample(self, path, label=None):
@@ -536,11 +646,16 @@ class App(tk.Tk):
                     if self.is_voice_sample:
                         self.play_voice_sample(Path(value), self.sample_voice_label)
                         continue
+                    if self.is_preview:
+                        self.preview_audio = Path(value)
+                        self.replay_preview.config(state='normal')
+                        self.play_audio(self.preview_audio, 'Đang nghe thử đoạn đã chọn cùng hiệu ứng và khoảng nghỉ.')
+                        continue
                     self.last_audio = Path(value)
                     self.status.set('Đã xuất MP3 + SRT + TXT: ' + str(self.last_audio))
-                    if self.is_preview:
-                        self.play()
                 else:
+                    if self.is_preview and not self.is_voice_sample:
+                        self.clear_preview()
                     self.status.set('Tạo chưa thành công. Xem thông báo lỗi để biết nguyên nhân.')
                     messagebox.showerror('Lỗi tạo giọng đọc', value)
         except queue.Empty:

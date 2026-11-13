@@ -7,6 +7,7 @@
 /models/
 /.vieneu_ready
 /work/
+/outputs/effects/
 __pycache__/
 *.py[cod]
 
