@@ -25,6 +25,41 @@ def stamp(seconds):
     ms = round(seconds * 1000)
     return f'{ms//3600000:02}:{ms//60000%60:02}:{ms//1000%60:02},{ms%1000:03}'
 
+
+def render_vieneu_story(tts, default_voice, job):
+    """Load the model once, switching preset voices between character turns."""
+    import numpy as np
+    import soundfile as sf
+
+    ffmpeg = shutil.which('ffmpeg')
+    def render_sentence(sentence, destination, item):
+        selected_voice = item.get('voice', 'vieneu:' + default_voice)
+        if not selected_voice.startswith('vieneu:'):
+            raise ValueError('Tác vụ VieNeu nhận giọng không đúng loại.')
+        selected_voice = selected_voice.split(':', 1)[1]
+        if selected_voice == 'default':
+            selected_voice = default_voice
+        audio = np.asarray(tts.infer(unicodedata.normalize('NFC', sentence), voice=selected_voice),
+                           dtype=np.float32).reshape(-1)
+        if not audio.size:
+            raise RuntimeError('VieNeu không trả về âm thanh cho câu vừa đọc.')
+        raw = destination.with_suffix('.wav')
+        tts.save(audio, str(raw))
+        rate = item.get('rate', job['rate'])
+        if item.get('expressive', job.get('expressive', False)):
+            beat = narration_beats(sentence, group_regular=False)[0]
+            rate = max(-50, min(100, rate + beat.rate_change))
+        speed = 1 + rate / 100
+        if speed != 1:
+            adjusted = destination.with_suffix('.adjusted.wav')
+            run_ffmpeg(ffmpeg, ['-y', '-i', str(raw), '-af', f'atempo={speed}', str(adjusted)])
+            raw = adjusted
+        duration = sf.info(str(raw)).duration
+        return raw, [(0, duration, sentence)]
+    return render_story(job['story_plan'], Path(job['target']), render_sentence,
+                        lambda value: emit('progress', value), preview=job.get('audition', False))
+
+
 def main():
     import numpy as np
     import soundfile as sf
@@ -45,22 +80,7 @@ def main():
         voice = voices[0][1]
     ffmpeg = shutil.which('ffmpeg')
     if job.get('story_plan') is not None:
-        def render_sentence(sentence, destination):
-            audio = np.asarray(tts.infer(unicodedata.normalize('NFC', sentence), voice=voice),
-                               dtype=np.float32).reshape(-1)
-            if not audio.size:
-                raise RuntimeError('VieNeu không trả về âm thanh cho câu vừa đọc.')
-            raw = destination.with_suffix('.wav')
-            tts.save(audio, str(raw))
-            speed = 1 + job['rate'] / 100
-            if speed != 1:
-                adjusted = destination.with_suffix('.adjusted.wav')
-                run_ffmpeg(ffmpeg, ['-y', '-i', str(raw), '-af', f'atempo={speed}', str(adjusted)])
-                raw = adjusted
-            duration = sf.info(str(raw)).duration
-            return raw, [(0, duration, sentence)]
-        output = render_story(job['story_plan'], target, render_sentence,
-                              lambda value: emit('progress', value), preview=job.get('audition', False))
+        output = render_vieneu_story(tts, voice, job)
         emit('done', str(output))
         return
     expressive = job.get('expressive', False)

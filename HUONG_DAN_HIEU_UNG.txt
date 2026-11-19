@@ -1,0 +1,61 @@
+REEL VOICE — CHÈN GIỌNG VÀ CẤU HÌNH ECHO / REVERB
+
+GÁN GIỌNG CHO MỘT CÂU ĐỐI THOẠI
+1. Viết lời kể bình thường. Lời thoại có thể đặt trong "..." hoặc “...”.
+2. Đặt con trỏ bên trong câu thoại, hoặc bôi đen phần muốn gán giọng.
+3. Bấm “＋ Chèn giọng tại con trỏ”.
+4. Chọn Người kể, Nam, Nữ, Nam — hồn ma hoặc Nữ — hồn ma, rồi bấm Chèn giọng.
+   Tên Nam / Nữ lấy theo tên thực trong thiết lập Nhân vật.
+5. Câu thoại có màu để dễ phân biệt. Ứng dụng chèn dấu [[VOICE:…]] để nhớ vai.
+   Tên vai và dấu điều khiển không đọc vào âm thanh hay phụ đề.
+6. Hết câu trong ngoặc kép tự trở lại giọng trước đó. Nếu đang kể bình thường,
+   giọng sẽ trở về người kể.
+7. Muốn đổi vai, đặt con trỏ trong câu thoại đã gán và bấm Chèn giọng lại.
+   Không cần xóa rồi chèn dấu mới. Nếu chưa có lời thoại, nút chèn tạo câu mẫu.
+
+Ví dụ dạng lưu trong TXT:
+Tôi nghe tiếng gõ cửa.
+[[VOICE:Nữ — hồn ma]]"Anh còn nhớ em không?"
+Tôi chưa kịp trả lời.
+[[VOICE:Nam — hồn ma]]"Đừng mở cửa!"
+Căn phòng chìm vào im lặng.
+
+Dấu ngoặc kép cần có đủ mở và đóng. Chỉ đặt ngoặc kép chưa tự quyết định
+giọng nam / nữ; dùng nút Chèn giọng để chọn vai cho câu đó.
+Vẫn dùng được dạng [Nam]: / [Nữ]: ở đầu dòng cho lượt thoại dài.
+
+TỰ CẤU HÌNH HIỆU ỨNG
+- Bấm “Hiệu ứng hồn ma…”, chọn nhân vật Nam hoặc Nữ rồi chỉnh thông số.
+- Hoặc mở “Nhân vật / giọng hồn ma…”, bấm “Hiệu ứng hồn ma…” trên vai cần chỉnh.
+- Các thông số này dành riêng cho phiên bản Hồn ma của nhân vật.
+  Giọng kể và đối thoại Tự nhiên giữ âm thanh gốc.
+- Chỉnh hiệu ứng hồn ma không tự chuyển một vai Tự nhiên sang Hồn ma.
+  Chọn Nam — hồn ma / Nữ — hồn ma khi chèn câu thoại để dùng cấu hình đã lưu.
+- Cao độ: từ -12 đến +12 bán âm, giữ tốc độ. Dùng được với VieNeu.
+- Âm trầm / bổng: tăng giảm theo dB.
+- Lớp hồn ma: chỉnh mức giọng phụ và tiếng vang của preset hồn ma.
+- Echo: mức tiếng lặp, độ trễ, số lần lặp và mức giữ tiếng mỗi lần.
+- Reverb: mức vang và kích thước phòng mô phỏng.
+- “Bỏ toàn bộ hiệu ứng” trả về giọng gốc; bấm Áp dụng để xác nhận thay đổi.
+
+NGHE THỬ VÀ LƯU
+- Mẫu mặc định là giọng nữ Trúc Ly. Chọn file giọng khác nếu muốn thử với nam
+  hoặc bản thu riêng. Hiệu ứng áp lên tối đa 12 giây đầu của file mẫu.
+- Bấm Nghe thử sau khi đổi thông số; Dừng để dừng phát.
+- Đặt tên và bấm Lưu preset để dùng lại trên nhiều vai.
+- Nhập / Xuất JSON dùng định dạng thông số của ReelVoice.
+- Bấm Áp dụng để lưu cấu hình hồn ma cho nhân vật đang chọn.
+  Nếu mở bảng hiệu ứng từ hộp Nhân vật, bấm thêm Lưu thiết lập trong hộp Nhân vật.
+- Lưu preset riêng chưa tự áp dụng cho giọng đang dùng.
+
+Thư viện preset: outputs/voice_effect_presets.json.
+Thiết lập từng vai và hiệu ứng hồn ma riêng: outputs/characters.json.
+Không ghi đè cấu hình của vai khác khi chỉnh một vai.
+File voice_effect.json của bản cũ được giữ lại nhưng không còn áp dụng cho giọng kể.
+
+SO VỚI OMNIBUS
+Có thể chuyển thủ công các thông số tương ứng như Pitch, Echo, Reverb,
+Bass và Treble. Thuật toán hai công cụ khác nhau nên âm thanh không đảm bảo giống hệt.
+JSON của ReelVoice chưa phải định dạng preset hay link chia sẻ của Omnibus.
+Reverb trong bản này dùng các lớp phản xạ mô phỏng vang phòng.
+Chỉnh cao độ hiệu ứng cần FFmpeg có bộ lọc rubberband.

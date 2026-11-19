@@ -1,0 +1,77 @@
+REEL VOICE — PRESET SHORT TÂM LINH / 6 NHỊP / 55 GIÂY
+
+Preset được cấu hình theo tài liệu “Cấu trúc short tái sử dụng — Truyện tâm linh, bản final”.
+Chỉ điều chỉnh cách đọc, nhịp, khoảng nghỉ và nhấn nhẹ; không thêm hay sửa sound effect.
+
+NHỊP         MỐC GIÂY    NGHỈ CÂU   NGHỈ ĐOẠN   CHUYỂN NHỊP
+HOOK         0–4        0.08s      0.10s        0.08s
+NEO          4–14       0.11s      0.16s        0.12s
+LEO 1        14–24      0.09s      0.14s        0.10s
+LEO 2        24–35      0.06s      0.10s        0.10s
+CAO TRÀO     35–47      0.12s      0.20s        0.20s
+KẾT          47–55      0.10s      0.16s        kết thúc
+
+CÁCH ĐỌC
+- Hook dứt khoát, nối nhanh sang vật thể ở NEO; không dùng khoảng nghỉ dài ở giây 4–6.
+- NEO đều, lạnh; không thêm lời giải thích.
+- LEO 1 nén nhịp. LEO 2 dùng khoảng nghỉ ngắn, không tự kéo chậm mọi câu ngắn.
+- Ba câu cuối cao trào có khoảng dừng trước câu 0.18–0.24s, dài hơn khoảng nghỉ thường.
+- Hook, ba câu cuối cao trào và câu chốt được nhấn nhẹ:
+  câu đó có thêm khoảng 8% trọng số thời lượng và tăng nhẹ 0.6 dB.
+- Không tự tăng cao độ câu hỏi hoặc thêm echo vào người kể.
+- Tốc độ được tính từ âm thanh đã tạo cho từng giọng, rồi căn đủ thời lượng mỗi nhịp.
+  Vì vậy cùng một preset vẫn dùng được khi đổi giọng.
+- Mức tốc độ và khoảng nghỉ ở cửa sổ chính bị khóa trong preset này; xem bảng ở Khung 55 giây.
+  Chọn Tự nhiên / Kịch tính để quay lại các thông số thủ công trước đó.
+
+NHẬP KỊCH BẢN
+Ưu tiên tiêu đề rõ ràng:
+
+[[BEAT:HOOK]]
+Lời mở đầu.
+
+[[BEAT:NEO]]
+Vật thể và chi tiết sai quy luật.
+
+[[BEAT:LEO1]]
+Hiện tượng đầu tiên.
+
+[[BEAT:LEO2]]
+Hiện tượng lặp lại và dấu vết.
+
+[[BEAT:CLIMAX]]
+Lộ bản chất.
+
+[[BEAT:END]]
+Dấu vết còn lại và câu hỏi trực tiếp.
+
+- Không đọc các tiêu đề vào âm thanh hay phụ đề.
+- Nếu có đúng 6 đoạn cách bằng dòng trống, ứng dụng nhận 6 nhịp theo thứ tự trên.
+- File Markdown có “NHỊP 1 — HOOK” … “NHỊP 6 — KẾT” cũng được nhận.
+  Với bố cục như tài liệu mẫu, chỉ các dòng lời đọc bắt đầu bằng > được lấy;
+  các dòng Hình, Pattern interrupt, description, tag và pinned comment không được đọc.
+- Bản nháp chưa chia thành 6 nhịp dùng nhịp khoảng 2.8 từ/giây; không giả định nó đã đủ khung 55s.
+- Nên giữ 140–155 từ và hạn chế câu quá dài như tài liệu.
+  Ứng dụng không tự viết lại nội dung hay cắt chữ để ép thời lượng.
+- Nghe thử trong preset này phát trọn nhịp có con trỏ / phần đang chọn,
+  để không làm một mảnh câu bị kéo dài thành cả nhịp.
+
+ÂM THANH VÀ PHỤ ĐỀ
+- Giọng kể vẫn dùng âm thanh gốc, có điều chỉnh tốc độ và nhấn nhẹ theo preset.
+- Cấu hình hồn ma nam/nữ, echo, reverb và file SFX vẫn giữ riêng.
+- File SFX giữ đúng tốc độ, âm lượng đã chọn. Không tự chèn tiếng gõ cửa, nước chảy hay nhạc nền.
+- 55 giây là thời lượng phần giọng và khoảng nghỉ.
+  SFX được chèn và đuôi hiệu ứng hồn ma có thể làm file tổng dài hơn; không bị cắt hoặc nén để ép 55s.
+- Khoảng nghỉ chèn thủ công [[PAUSE:…]] được giữ nguyên.
+  Nếu nghỉ thủ công dài hơn cả nhịp, ứng dụng báo để bạn chỉnh lại.
+- Xuất MP3 + SRT + TXT như trước và thêm .timing.json:
+  mốc nhịp thực tế, tốc độ đã áp dụng và lưu ý về độ dài câu.
+- TXT xuất kèm giữ nhãn nhịp và vai thoại để nhập lại.
+
+MẪU ĐÃ KIỂM TRA
+Mẫu “Vải đỏ” từ tài liệu có 157 từ và được tạo bằng VieNeu, căn 55 giây phần giọng đọc.
+Các nhịp bắt đầu tại 0, 4, 14, 24, 35, 47 và kết thúc tại 55 giây.
+Mẫu chỉ là file tham khảo và file nghe thử, không được tự nạp vào ô soạn thảo.
+Ứng dụng mở ô soạn thảo trống để bạn dán kịch bản riêng.
+Khung 55 giây > Chèn khung trống 6 nhịp chỉ chèn tiêu đề, không có nội dung truyện.
+Có thể Ctrl+Z để hoàn tác việc chèn khung.

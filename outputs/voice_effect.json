@@ -1,0 +1,12 @@
+{
+  "pitch_st": 0.0,
+  "bass_db": 0.0,
+  "treble_db": 0.0,
+  "ghost_mix": 0.0,
+  "echo_mix": 0.0,
+  "echo_delay_ms": 250.0,
+  "echo_repeats": 3.0,
+  "echo_feedback": 45.0,
+  "reverb_mix": 0.0,
+  "room_size": 50.0
+}

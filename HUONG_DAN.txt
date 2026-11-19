@@ -5,17 +5,38 @@ REEL VOICE — BẢN WINDOWS
    Khi cài máy mới: python -m venv .venv
    Sau đó: .venv\Scripts\python.exe -m pip install -r requirements.txt
    Giọng Edge cần edge-tts 7.3.1 để dùng xác thực mới, tránh lỗi 403 của bản cũ.
-2. Dán kịch bản hoặc chọn Nhập TXT / SRT (UTF-8).
+2. Dán kịch bản hoặc chọn Nhập TXT / SRT / MD (UTF-8).
 3. Chọn giọng: Việt Nam Minh / Hoài My hoặc giọng Anh.
-4. Tốc độ -5% là điểm bắt đầu. Cao độ 0 Hz.
+4. Mặc định dùng Cách đọc > Short tâm linh · 6 nhịp.
+   Chia 6 đoạn theo HOOK, NEO, LEO 1, LEO 2, CAO TRÀO, KẾT, hoặc dùng tiêu đề [[BEAT:…]].
+   Bấm Khung 55 giây để xem tốc độ tự căn và khoảng nghỉ cho từng nhịp.
+   Preset này giữ giọng nén, lạnh; nhấn nhẹ bằng nhịp và âm lượng, không gào.
+   Xem HUONG_DAN_SHORT_TAM_LINH.txt.
+   Ở chế độ Tự nhiên / Kịch tính, tốc độ -5% là điểm bắt đầu. Cao độ 0 Hz.
    Với Edge hoặc VieNeu, chọn Cách đọc > Kịch tính để thêm khoảng nghỉ.
    Với VieNeu, đặt tốc độ 0% để nghe nhịp và cao độ gốc của giọng.
    Chế độ này dùng FFmpeg và đọc thử vài câu đầu để nghe được sự thay đổi nhịp.
 5. Bấm Tạo mẫu nghe thử, sau đó Xuất toàn bộ MP3 + SRT.
 6. Mở thư mục xuất. Nhập MP3 và SRT vào CapCut, xếp clip Flow theo lời đọc.
 
+ĐỐI THOẠI VÀ GIỌNG HỒN MA
+Bấm “Nhân vật / giọng hồn ma…” để chọn giọng và hiệu ứng cho từng vai.
+Viết [Nam]: lời thoại và [Nữ]: lời thoại ở đầu dòng.
+Vai Nữ mặc định có hiệu ứng Hồn ma. Có thể chèn mẫu từ hộp thiết lập.
+Xem HUONG_DAN_DOI_THOAI.txt để dùng chỉ dẫn hiệu ứng và nghe thử theo vai.
+
+CHÈN GIỌNG TẠI CON TRỎ VÀ TỰ CHỈNH HIỆU ỨNG
+Bấm “＋ Chèn giọng tại con trỏ” để gán nam, nữ hoặc hồn ma cho lời thoại trong "...".
+Đặt con trỏ trong một câu thoại đã gán để đổi vai; hết câu tự trở về giọng trước đó.
+Bấm “Hiệu ứng hồn ma…” và chọn Nam hoặc Nữ để chỉnh hiệu ứng cho phiên bản hồn ma.
+Trong thiết lập Nhân vật cũng có nút “Hiệu ứng hồn ma…” trên từng vai.
+Echo, reverb và cao độ hiệu ứng chỉ áp dụng khi vai đó nói bằng giọng Hồn ma.
+Giọng kể và đối thoại Tự nhiên giữ âm thanh gốc.
+Có lưu preset, nhập/xuất JSON và nghe thử bằng file giọng gốc.
+Xem HUONG_DAN_HIEU_UNG.txt.
+
 Mỗi lần tạo có tên riêng, không ghi đè bản trước.
-SRT sử dụng mốc câu từ dịch vụ TTS, không ước lượng theo số chữ.
+SRT dựa trên mốc giọng đọc và số mẫu âm thanh thực sau khi căn tốc độ, không ước lượng theo số chữ.
 SRT đầu vào chỉ lấy nội dung; thời gian được tạo lại theo âm thanh mới.
 Đây là bản một kịch bản mỗi lượt, chưa có xử lý hàng loạt nhiều tệp.
 
@@ -26,6 +47,8 @@ Dùng thư viện cộng đồng edge-tts để gọi dịch vụ đọc trực 
 Cần Internet; nội dung kịch bản được gửi tới dịch vụ Microsoft để tổng hợp.
 Không cam kết dịch vụ miễn phí/vô hạn hoặc ổn định lâu dài.
 Quyền sử dụng âm thanh phụ thuộc điều khoản dịch vụ; công cụ không cấp thêm quyền.
-Không đảm bảo khớp đúng 60 giây. Nghe và chỉnh tốc độ/kịch bản rồi tạo lại.
+Preset Short căn giọng đọc vào 55 giây khi có đủ 6 nhịp.
+Sound effect và đuôi hiệu ứng hồn ma giữ riêng nên có thể làm tổng file dài hơn.
+Các chế độ khác không ép thời lượng; nghe và chỉnh tốc độ/kịch bản rồi tạo lại.
 
 Nguồn thư viện và hướng dẫn: https://github.com/rany2/edge-tts

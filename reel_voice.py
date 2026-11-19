@@ -21,6 +21,9 @@ from datetime import datetime
 from expressive_voice import cleanup_expressive, synthesize_expressive
 from story_audio import (cleanup_story, read_cues,
                          read_effects, render_story, script_plan, script_excerpt)
+from dialogue import CHARACTER_HEADER, INLINE_VOICE, default_characters, inline_turns, read_characters
+from short_pacing import STYLE as SHORT_STYLE, VERSION as SHORT_VERSION
+from short_pacing import canonical_script, has_headers, short_plan
 
 BASE = Path(__file__).resolve().parent
 
@@ -184,15 +187,28 @@ async def synthesize(text, voice, rate, pitch, target, progress=None):
 
 def worker(events, text, voice, rate, pitch, target, expressive=False, plan=None, audition=False):
     try:
-        if voice.startswith('vieneu:'):
+        plan_voices = {item.get('voice', voice) for item in (plan or []) if item['kind'] == 'speech'}
+        if plan is not None and plan_voices and all(value.startswith('vieneu:') for value in plan_voices):
+            base_voice = voice if voice.startswith('vieneu:') else next(iter(plan_voices))
+            output = vieneu_synthesize(text, base_voice, rate, Path(target), events,
+                                       expressive, plan, audition)
+        elif plan is None and voice.startswith('vieneu:'):
             output = vieneu_synthesize(text, voice, rate, Path(target), events, expressive, plan, audition)
         elif plan is not None:
-            def render_sentence(sentence, destination):
-                if voice.startswith('offline:'):
-                    audio = offline_synthesize(sentence, voice, rate, pitch, destination, events)
+            def render_sentence(sentence, destination, item):
+                selected_voice = item.get('voice', voice)
+                selected_rate = item.get('rate', rate)
+                selected_pitch = item.get('pitch', pitch)
+                selected_expressive = item.get('expressive', expressive)
+                if selected_voice.startswith('vieneu:'):
+                    audio = vieneu_synthesize(sentence, selected_voice, selected_rate, destination,
+                                               events, selected_expressive)
+                elif selected_voice.startswith('offline:'):
+                    audio = offline_synthesize(sentence, selected_voice, selected_rate,
+                                               selected_pitch, destination, events)
                 else:
-                    render = synthesize_expressive if expressive else synthesize
-                    asyncio.run(render(sentence, voice, rate, pitch, destination))
+                    render = synthesize_expressive if selected_expressive else synthesize
+                    asyncio.run(render(sentence, selected_voice, selected_rate, selected_pitch, destination))
                     audio = destination
                 return audio, read_cues(destination.with_suffix('.srt'))
             output = render_story(plan, Path(target), render_sentence,
@@ -250,7 +266,7 @@ class AudioPlayer:
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Reel Voice 1.7 · Giọng đọc + Dựng Reel từ ảnh')
+        self.title('Reel Voice 2.0 · Short tâm linh · Nhịp đọc 55 giây')
         self.geometry('1000x750')
         self.minsize(800, 600)
         self.events = mp.Queue()
@@ -261,6 +277,15 @@ class App(tk.Tk):
         self.preview_temp = None
         self.player = AudioPlayer()
         self.folder = BASE / 'outputs' / 'audio'
+        self.characters_path = BASE / 'outputs' / 'characters.json'
+        self.fx_presets_path = BASE / 'outputs' / 'voice_effect_presets.json'
+        self.effect_sample_path = BASE / 'samples' / 'voice_effect_sample.mp3'
+        character_warning = ''
+        try:
+            self.characters = read_characters(self.characters_path, VOICES)
+        except (OSError, ValueError) as exc:
+            self.characters = default_characters(VOICES)
+            character_warning = 'Không đọc được thiết lập nhân vật; đang dùng mẫu Nam / Nữ. ' + str(exc)
         style = ttk.Style(self)
         style.theme_use('clam')
         style.configure('TButton', padding=7)
@@ -275,10 +300,12 @@ class App(tk.Tk):
         ttk.Combobox(settings, textvariable=self.voice, values=list(VOICES), state='readonly', width=48).grid(row=0, column=0, padx=5)
         ttk.Label(settings, text='Tốc độ %').grid(row=0, column=1, padx=5)
         self.rate = tk.StringVar(value='-5')
-        ttk.Spinbox(settings, from_=-50, to=100, textvariable=self.rate, width=6).grid(row=0, column=2)
+        self.rate_box = ttk.Spinbox(settings, from_=-50, to=100, textvariable=self.rate, width=6)
+        self.rate_box.grid(row=0, column=2)
         ttk.Label(settings, text='Cao độ Hz').grid(row=0, column=3, padx=5)
         self.pitch = tk.StringVar(value='0')
-        ttk.Spinbox(settings, from_=-50, to=50, textvariable=self.pitch, width=6).grid(row=0, column=4)
+        self.pitch_box = ttk.Spinbox(settings, from_=-50, to=50, textvariable=self.pitch, width=6)
+        self.pitch_box.grid(row=0, column=4)
         self.voice_sample = ttk.Button(settings, text='▶ Nghe mẫu giọng',
             command=lambda: self.start(True, voice_sample=True))
         self.voice_sample.grid(row=1, column=0, sticky='w', padx=5, pady=(8, 0))
@@ -288,26 +315,43 @@ class App(tk.Tk):
         delivery = ttk.Frame(settings)
         delivery.grid(row=2, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
         ttk.Label(delivery, text='Cách đọc').pack(side='left', padx=(0, 8))
-        self.delivery = tk.StringVar(value='Tự nhiên')
+        self.delivery = tk.StringVar(value=SHORT_STYLE)
+        self._short_selected = False
         self.delivery_box = ttk.Combobox(delivery, textvariable=self.delivery,
-            values=('Tự nhiên', 'Kịch tính'), state='readonly', width=12)
+            values=('Tự nhiên', 'Kịch tính', SHORT_STYLE), state='readonly', width=23)
         self.delivery_box.pack(side='left')
-        ttk.Label(delivery, text='Đổi nhịp và ngắt nghỉ với Edge và VieNeu').pack(side='left', padx=8)
+        self.short_button = ttk.Button(delivery, text='Khung 55 giây…', command=self.configure_short)
+        self.short_button.pack(side='left', padx=8)
+        ttk.Label(delivery, text='Tự căn tốc độ và nghỉ theo 6 nhịp').pack(side='left')
         self.voice.trace_add('write', self.update_delivery)
-        self.update_delivery()
+        self.delivery.trace_add('write', self.update_delivery)
         pauses = ttk.Frame(settings)
         pauses.grid(row=3, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
         ttk.Label(pauses, text='Nghỉ giữa câu (giây)').pack(side='left')
         self.sentence_pause = tk.StringVar(value='0.35')
-        ttk.Spinbox(pauses, from_=0, to=5, increment=.05, width=6,
-                    textvariable=self.sentence_pause).pack(side='left', padx=(8, 18))
+        self.sentence_pause_box = ttk.Spinbox(pauses, from_=0, to=5, increment=.05, width=6,
+                                             textvariable=self.sentence_pause)
+        self.sentence_pause_box.pack(side='left', padx=(8, 18))
         ttk.Label(pauses, text='Nghỉ giữa đoạn (giây)').pack(side='left')
         self.paragraph_pause = tk.StringVar(value='0.8')
-        ttk.Spinbox(pauses, from_=0, to=10, increment=.1, width=6,
-                    textvariable=self.paragraph_pause).pack(side='left', padx=8)
+        self.paragraph_pause_box = ttk.Spinbox(pauses, from_=0, to=10, increment=.1, width=6,
+                                              textvariable=self.paragraph_pause)
+        self.paragraph_pause_box.pack(side='left', padx=8)
+        self.update_delivery()
+        characters = ttk.Frame(settings)
+        characters.grid(row=4, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
+        self.character_button = ttk.Button(characters, text='Nhân vật / giọng hồn ma…',
+                                           command=self.configure_characters)
+        self.character_button.pack(side='left')
+        self.voice_fx_button = ttk.Button(characters, text='Hiệu ứng hồn ma…',
+                                          command=self.configure_ghost_effects)
+        self.voice_fx_button.pack(side='left', padx=8)
+        self.insert_voice_button = ttk.Button(characters, text='＋ Chèn giọng tại con trỏ',
+                                              command=self.insert_voice)
+        self.insert_voice_button.pack(side='left')
         toolbar = ttk.Frame(root)
         toolbar.pack(fill='x', pady=10)
-        ttk.Button(toolbar, text='Nhập TXT / SRT', command=self.load).pack(side='left')
+        ttk.Button(toolbar, text='Nhập TXT / SRT / MD', command=self.load).pack(side='left')
         ttk.Button(toolbar, text='Chọn thư mục xuất', command=self.choose_folder).pack(side='left', padx=6)
         ttk.Button(toolbar, text='Mở thư mục xuất', command=lambda: self.open_folder()).pack(side='left')
         ttk.Button(toolbar, text='Dựng Reel từ ảnh', command=self.open_reel_editor).pack(side='left', padx=6)
@@ -330,12 +374,15 @@ class App(tk.Tk):
         self.text.configure(yscrollcommand=scroll.set)
         self.text.pack(side='left', fill='both', expand=True)
         scroll.pack(side='right', fill='y')
-        self.text.insert('1.0', 'Bạn bị thương giữa thời tiền sử. Không bệnh viện. Không xe cứu thương. Ai sẽ cứu bạn?')
+        self.text.tag_configure('voice_marker', foreground='#64748b')
+        self.text.tag_configure('dialogue', foreground='#1d4ed8', background='#eff6ff')
+        self.text.tag_configure('ghost_dialogue', foreground='#7e22ce', background='#faf5ff')
+        self.text.bind('<<Modified>>', self.highlight_voices)
         actions = ttk.Frame(root)
         actions.pack(fill='x', pady=10)
         self.preview = ttk.Button(actions, text='▶ Nghe đoạn đang chọn', command=lambda: self.start(True))
         self.preview.pack(side='left')
-        ttk.Label(root, text='Bôi đen phần cần nghe; nếu chưa chọn, nghe đoạn văn tại con trỏ. Có phát hiệu ứng đã chèn.').pack(anchor='w')
+        ttk.Label(root, text='Short: nghe trọn nhịp tại con trỏ. Chế độ khác: nghe phần bôi đen hoặc đoạn văn.').pack(anchor='w')
         self.generate = ttk.Button(actions, text='Xuất toàn bộ MP3 + SRT', command=lambda: self.start(False))
         self.generate.pack(side='left', padx=8)
         ttk.Button(actions, text='Nghe file vừa tạo', command=self.play).pack(side='left')
@@ -344,7 +391,8 @@ class App(tk.Tk):
         self.cancel_button.pack(side='left', padx=8)
         self.bar = ttk.Progressbar(root, mode='indeterminate')
         self.bar.pack(fill='x')
-        self.status = tk.StringVar(value='Sẵn sàng. Nghe thử một đoạn trước khi xuất toàn bộ.')
+        self.status = tk.StringVar(value=character_warning or
+                                   'Sẵn sàng. Short tâm linh: 6 nhịp / 55 giây. Mở Khung 55 giây để xem cấu hình.')
         ttk.Label(root, textvariable=self.status, wraplength=900).pack(anchor='w', pady=7)
         self.table = ttk.Treeview(root, columns=('id','content'), show='headings', height=5)
         self.table.heading('id', text='Đoạn')
@@ -358,8 +406,28 @@ class App(tk.Tk):
     def update_delivery(self, *_):
         offline = VOICES[self.voice.get()].startswith('offline:')
         self.delivery_box.config(state='disabled' if offline else 'readonly')
-        if offline:
+        if offline and self.delivery.get() != 'Tự nhiên':
             self.delivery.set('Tự nhiên')
+        short = self.delivery.get() == SHORT_STYLE
+        if short and not self._short_selected:
+            self._manual_pacing = (self.rate.get(), self.pitch.get(), self.sentence_pause.get(), self.paragraph_pause.get())
+            for variable, value in zip((self.rate, self.pitch, self.sentence_pause, self.paragraph_pause),
+                                       ('0', '0', '0.10', '0.18')):
+                variable.set(value)
+        elif self._short_selected and not short:
+            for variable, value in zip((self.rate, self.pitch, self.sentence_pause, self.paragraph_pause),
+                                       self._manual_pacing):
+                variable.set(value)
+        self._short_selected = short
+        for control in (self.rate_box, self.pitch_box, self.sentence_pause_box, self.paragraph_pause_box):
+            control.config(state='disabled' if short else 'normal')
+        self.short_button.config(state='disabled' if offline else 'normal')
+
+    def configure_short(self):
+        if self.busy:
+            return
+        from short_pacing_dialog import ShortPacingDialog
+        ShortPacingDialog(self)
 
     def insert_effect(self):
         if self.busy:
@@ -369,6 +437,40 @@ class App(tk.Tk):
             SoundDialog(self, self.text.index('insert'), BASE / 'outputs' / 'effects')
         except (OSError, ValueError) as exc:
             messagebox.showerror('Không mở được thư viện hiệu ứng', str(exc))
+
+    def configure_characters(self):
+        if self.busy:
+            return
+        from character_dialog import CharacterDialog
+        CharacterDialog(self, VOICES)
+
+    def configure_ghost_effects(self):
+        if self.busy:
+            return
+        from effect_dialog import GhostEffectDialog
+        GhostEffectDialog(self, VOICES)
+
+    def insert_voice(self):
+        if self.busy:
+            return
+        from voice_insert_dialog import VoiceInsertDialog
+        VoiceInsertDialog(self)
+
+    def highlight_voices(self, *_):
+        if not self.text.edit_modified():
+            return
+        self.text.edit_modified(False)
+        text = self.text.get('1.0', 'end-1c')
+        for tag in ('voice_marker', 'dialogue', 'ghost_dialogue'):
+            self.text.tag_remove(tag, '1.0', 'end')
+        for marker in re.finditer(INLINE_VOICE + '|' + CHARACTER_HEADER, text, re.MULTILINE):
+            self.text.tag_add('voice_marker', f'1.0+{marker.start()}c', f'1.0+{marker.end()}c')
+        try:
+            for turn in inline_turns(text):
+                tag = 'ghost_dialogue' if 'hồn ma' in turn['voice'].casefold() else 'dialogue'
+                self.text.tag_add(tag, f'1.0+{turn["content_start"]}c', f'1.0+{turn["content_end"]}c')
+        except ValueError:
+            pass  # A partially typed quote is normal while editing.
 
     def save_script(self):
         name = filedialog.asksaveasfilename(defaultextension='.txt', filetypes=[('Kịch bản', '*.txt')])
@@ -422,6 +524,10 @@ class App(tk.Tk):
         self.voice_sample.config(state='normal')
         self.generate.config(state='normal')
         self.effect_button.config(state='normal')
+        self.character_button.config(state='normal')
+        self.voice_fx_button.config(state='normal')
+        self.insert_voice_button.config(state='normal')
+        self.short_button.config(state='disabled' if VOICES[self.voice.get()].startswith('offline:') else 'normal')
         self.cancel_button.config(state='disabled')
 
     def cancel(self, timed_out=False):
@@ -446,7 +552,7 @@ class App(tk.Tk):
     def load(self):
         if self.busy:
             return
-        name = filedialog.askopenfilename(filetypes=[('Kịch bản', '*.txt *.srt')])
+        name = filedialog.askopenfilename(filetypes=[('Kịch bản', '*.txt *.srt *.md')])
         if not name:
             return
         try:
@@ -456,6 +562,9 @@ class App(tk.Tk):
                 value = '\n\n'.join(' '.join(line.strip() for line in b.splitlines()
                     if line.strip() and not line.strip().isdigit() and '-->' not in line) for b in blocks)
             value = transcript_text(value)
+            if has_headers(value):
+                value = canonical_script(value)
+                self.delivery.set(SHORT_STYLE)
             self.text.delete('1.0', 'end')
             self.text.insert('1.0', value)
             self.status.set('Đã nhập lời đọc. Mốc thời gian TXT/SRT được bỏ qua; phụ đề sẽ khớp với audio mới.')
@@ -490,8 +599,14 @@ class App(tk.Tk):
         self.stop_playback()
         voice = VOICES[self.voice.get()]
         expressive = self.delivery.get() == 'Kịch tính'
+        short = self.delivery.get() == SHORT_STYLE
+        preview_start = preview_end = None
         if voice_sample:
-            if voice.startswith('en-'):
+            if short:
+                sample = ('Đây là mẫu giọng đọc. Bạn có nghe rõ không?' if voice.startswith(('vi-', 'vieneu:')) else
+                          "Don't open the door after midnight. Even if you hear me.")
+                text = '[[BEAT:HOOK]]\n' + sample
+            elif voice.startswith('en-'):
                 text = 'A ribbon of moonlight slipped under the library door. The clock struck twelve. Silence. Who was there?'
             elif voice.startswith(('vi-', 'vieneu:')):
                 text = 'Một vệt trăng lọt qua khe cửa thư viện. Đồng hồ điểm mười hai tiếng. Im lặng. Ai đang ở đó?'
@@ -499,15 +614,23 @@ class App(tk.Tk):
                 text = 'Hello! This is a sample of my voice. Imagine the stories we can tell together.'
         else:
             text = self.text.get('1.0', 'end-1c')
+            if has_headers(text):
+                short = True
+                expressive = False
+                self.delivery.set(SHORT_STYLE)
             if preview:
                 selection = self.text.tag_ranges('sel')
                 begin = selection[0] if selection else 'insert'
                 offset = self.text.count('1.0', begin, 'chars')
                 start = offset[0] if offset else 0
                 end_offset = self.text.count('1.0', selection[1], 'chars') if selection else None
-                text = script_excerpt(text, start, end_offset[0] if end_offset else None)
-            text = transcript_text(text.strip())
-        if not text:
+                if short:
+                    preview_start, preview_end = start, end_offset[0] if end_offset else None
+                else:
+                    text = script_excerpt(text, start, end_offset[0] if end_offset else None)
+            if not short:
+                text = transcript_text(text.strip())
+        if not text.strip():
             messagebox.showwarning('Thiếu kịch bản', 'Hãy nhập kịch bản.')
             return
         try:
@@ -522,9 +645,18 @@ class App(tk.Tk):
             if not (0 <= sentence_pause <= 5 and 0 <= paragraph_pause <= 10):
                 raise ValueError('Nghỉ giữa câu từ 0–5 giây, giữa đoạn từ 0–10 giây.')
             plan = None
-            if sentence_pause or paragraph_pause or '[[' in text or (preview and not voice_sample):
+            if short:
+                plan = short_plan(text, read_effects(BASE / 'outputs' / 'effects'), self.characters,
+                                  preview_start, preview_end)
+                if not plan:
+                    raise ValueError('Hãy nhập lời đọc cho Short.')
+                if not shutil.which('ffmpeg'):
+                    raise ValueError('Cần FFmpeg để căn nhịp Short tâm linh.')
+            elif (sentence_pause or paragraph_pause or '[[' in text
+                    or re.search(r'(?m)^[ \t]*\[[^\[\]\r\n]+\][ \t]*:', text)
+                    or (preview and not voice_sample)):
                 plan = script_plan(text, sentence_pause, paragraph_pause,
-                                   read_effects(BASE / 'outputs' / 'effects'))
+                                   read_effects(BASE / 'outputs' / 'effects'), self.characters)
                 if not plan:
                     raise ValueError('Hãy nhập lời kể hoặc chèn hiệu ứng.')
                 if not shutil.which('ffmpeg'):
@@ -537,7 +669,9 @@ class App(tk.Tk):
                 self.table.delete(row)
             for i, part in enumerate(paragraphs(text), 1):
                 self.table.insert('', 'end', values=(i, part))
-        if voice.startswith('vieneu:') and pitch:
+        default_speech = plan is None or any(
+            item['kind'] == 'speech' and 'voice' not in item for item in plan)
+        if default_speech and voice.startswith('vieneu:') and pitch:
             messagebox.showwarning('Cao độ VieNeu', 'VieNeu dùng cao độ tự nhiên. Hãy đặt cao độ 0.')
             return
         if preview and not voice_sample:
@@ -562,6 +696,8 @@ class App(tk.Tk):
             target = folder / 'audition.wav'
         if voice_sample:
             settings = [text, voice, rate, pitch]
+            if short:
+                settings.append(SHORT_VERSION)
             if plan is not None:
                 settings.append(['story-v1', sentence_pause, paragraph_pause])
             if expressive:
@@ -579,6 +715,7 @@ class App(tk.Tk):
         self.is_preview = preview
         self.is_voice_sample = voice_sample
         self.is_expressive = expressive
+        self.is_short = short
         self.sample_voice_label = self.voice.get()
         self.started = time.monotonic()
         self.timeout_seconds = (600 if preview else 1800) if voice.startswith('vieneu:') else (30 if preview else 180)
@@ -586,11 +723,18 @@ class App(tk.Tk):
             self.timeout_seconds = 90 if preview else 900
         if plan is not None:
             self.timeout_seconds = max(self.timeout_seconds, 180 if preview else max(900, len(plan) * 30))
+            if any(item.get('voice', voice).startswith('vieneu:') for item in plan
+                   if item['kind'] == 'speech'):
+                self.timeout_seconds = max(self.timeout_seconds, 600 if preview else len(plan) * 90)
         self.progress_text = 'Đang nạp model / tạo giọng đọc'
         self.preview.config(state='disabled')
         self.voice_sample.config(state='disabled')
         self.generate.config(state='disabled')
         self.effect_button.config(state='disabled')
+        self.character_button.config(state='disabled')
+        self.voice_fx_button.config(state='disabled')
+        self.insert_voice_button.config(state='disabled')
+        self.short_button.config(state='disabled')
         self.cancel_button.config(state='normal')
         self.bar.start(12)
         self.status.set('Đang chuẩn bị đoạn nghe thử…' if preview else 'Đang kết nối và tạo giọng đọc…')
