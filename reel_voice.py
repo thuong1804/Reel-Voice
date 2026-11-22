@@ -6,6 +6,7 @@ from pathlib import Path
 import queue
 import re
 import multiprocessing as mp
+import threading
 import time
 import json
 import subprocess
@@ -18,7 +19,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from datetime import datetime
 
-from expressive_voice import cleanup_expressive, synthesize_expressive
+from expressive_voice import cleanup_expressive, synthesize_expressive, apply_ghost_effect, apply_stretch
 from story_audio import (cleanup_story, read_cues,
                          read_effects, render_story, script_plan, script_excerpt)
 
@@ -33,7 +34,7 @@ def use_app_python():
         os.execv(str(interpreter), [str(interpreter), str(BASE / 'reel_voice.py'), *sys.argv[1:]])
 
 
-VOICES = {
+BASE_VOICES = {
     'VieNeu v3 · Tiếng Việt · Mặc định': 'vieneu:default',
     'FREE Offline · Nữ Mỹ · Zira': 'offline:Microsoft Zira Desktop',
     'Tiếng Việt · Nam · Nam Minh': 'vi-VN-NamMinhNeural',
@@ -43,20 +44,31 @@ VOICES = {
     'English UK · Male · Ryan': 'en-GB-RyanNeural',
     'English UK · Female · Sonia': 'en-GB-SoniaNeural',
 }
-try:
-    for preset in json.loads((BASE / 'vieneu_voices.json').read_text(encoding='utf-8')):
-        VOICES['VieNeu v3 · ' + preset['label']] = 'vieneu:' + preset['id']
-except (OSError, ValueError, KeyError):
-    pass
 
-def vieneu_synthesize(text, voice, rate, target, events, expressive=False, plan=None, audition=False):
+
+def load_voices():
+    voices = dict(BASE_VOICES)
+    try:
+        for preset in json.loads((BASE / 'vieneu_voices.json').read_text(encoding='utf-8')):
+            voices['VieNeu v3 · ' + preset['label']] = 'vieneu:' + preset['id']
+    except (OSError, ValueError, KeyError):
+        pass
+    return voices
+
+
+VOICES = load_voices()
+
+
+def vieneu_synthesize(text, voice, rate, target, events, expressive=False, plan=None,
+                      audition=False, temperature=0.85):
     interpreter = BASE / '.venv-vieneu' / 'Scripts' / 'python.exe'
     if not interpreter.exists():
         raise RuntimeError('Chưa cài VieNeu. Hãy chạy Cai_VieNeu.cmd trong thư mục ứng dụng.')
     job = target.with_suffix('.job.json')
     job.write_text(json.dumps({'text': text, 'voice': voice.split(':', 1)[1],
                               'rate': rate, 'target': str(target), 'expressive': expressive,
-                              'story_plan': plan, 'audition': audition}, ensure_ascii=False), encoding='utf-8')
+                              'story_plan': plan, 'audition': audition,
+                              'temperature': temperature}, ensure_ascii=False), encoding='utf-8')
     output = None
     try:
         with target.with_suffix('.log.txt').open('w', encoding='utf-8') as log:
@@ -182,12 +194,14 @@ async def synthesize(text, voice, rate, pitch, target, progress=None):
     finally:
         temporary.unlink(missing_ok=True)
 
-def worker(events, text, voice, rate, pitch, target, expressive=False, plan=None, audition=False):
+def worker(events, text, voice, rate, pitch, target, expressive=False, plan=None, audition=False,
+           ghost=False, ghost_reverb=0, ghost_bass=0, ghost_stretch=100, temperature=0.85):
     try:
         if voice.startswith('vieneu:'):
-            output = vieneu_synthesize(text, voice, rate, Path(target), events, expressive, plan, audition)
+            output = vieneu_synthesize(text, voice, rate, Path(target), events, expressive,
+                                       plan, audition, temperature=temperature)
         elif plan is not None:
-            def render_sentence(sentence, destination):
+            def render_sentence(sentence, destination, item=None):
                 if voice.startswith('offline:'):
                     audio = offline_synthesize(sentence, voice, rate, pitch, destination, events)
                 else:
@@ -204,6 +218,14 @@ def worker(events, text, voice, rate, pitch, target, expressive=False, plan=None
             asyncio.run(render(text, voice, rate, pitch, Path(target),
                 lambda sentence: events.put(('progress', sentence))))
             output = target
+        if ghost:
+            output_path = Path(output)
+            apply_ghost_effect(output_path, ghost_reverb, ghost_bass)
+            output = str(output_path)
+        if ghost_stretch > 100:
+            output_path = Path(output)
+            apply_stretch(output_path, output_path.with_suffix('.srt'), ghost_stretch)
+            output = str(output_path)
         events.put(('done', str(output)))
     except Exception as exc:
         events.put(('error', f'{type(exc).__name__}: {exc}'))
@@ -247,6 +269,223 @@ class AudioPlayer:
         return self.opened and self.command(f'status {self.alias} mode') == 'playing'
 
 
+class CloneVoiceDialog(tk.Toplevel):
+    """Add or remove custom cloned voices in VieNeu v3 Turbo."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.busy = False
+        self.events = queue.Queue()
+        self.title('Thêm / Quản lý giọng mẫu VieNeu (Clone)')
+        self.transient(app)
+        self.resizable(False, False)
+        self.protocol('WM_DELETE_WINDOW', self.close)
+        body = ttk.Frame(self, padding=18)
+        body.pack(fill='both', expand=True)
+
+        ttk.Label(body, text='Clone giọng từ file âm thanh mẫu (không cần train GPU)',
+                  font=('Segoe UI', 11, 'bold')).pack(anchor='w')
+        ttk.Label(body, text='Chọn đoạn audio sạch (không nhạc nền), giàu nhấn nhá đúng phong cách bạn muốn.\n'
+                             'VieNeu v3 Turbo trích tối đa 8 giây từ mốc bắt đầu để học chất giọng & ngữ điệu.',
+                  justify='left').pack(anchor='w', pady=(4, 12))
+
+        form = ttk.Frame(body)
+        form.pack(fill='x')
+        ttk.Label(form, text='File mẫu:').grid(row=0, column=0, sticky='w', pady=4)
+        self.audio_var = tk.StringVar()
+        ttk.Entry(form, textvariable=self.audio_var, width=44).grid(row=0, column=1, padx=6, pady=4)
+        ttk.Button(form, text='Chọn file…', command=self.pick_file).grid(row=0, column=2, pady=4)
+
+        ttk.Label(form, text='Tên giọng:').grid(row=1, column=0, sticky='w', pady=4)
+        self.name_var = tk.StringVar(value='Kể chuyện ma · Custom')
+        ttk.Entry(form, textvariable=self.name_var, width=44).grid(row=1, column=1, columnspan=2, sticky='we', padx=(6, 0), pady=4)
+
+        ttk.Label(form, text='Mô tả:').grid(row=2, column=0, sticky='w', pady=4)
+        self.desc_var = tk.StringVar(value='Nam · Bắc · Kể chuyện ma')
+        ttk.Entry(form, textvariable=self.desc_var, width=44).grid(row=2, column=1, columnspan=2, sticky='we', padx=(6, 0), pady=4)
+
+        opts = ttk.Frame(body)
+        opts.pack(fill='x', pady=(8, 4))
+        ttk.Label(opts, text='Bắt đầu từ giây:').pack(side='left')
+        self.start_var = tk.StringVar(value='0')
+        ttk.Spinbox(opts, from_=0, to=3600, increment=1, width=6,
+                    textvariable=self.start_var).pack(side='left', padx=(6, 16))
+        self.denoise_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opts, text='Lọc nhiễu tự động (Denoise)',
+                        variable=self.denoise_var).pack(side='left')
+
+        btn_row = ttk.Frame(body)
+        btn_row.pack(fill='x', pady=(10, 6))
+        self.save_btn = ttk.Button(btn_row, text='＋ Lưu giọng mẫu vào VieNeu', command=self.add_voice)
+        self.save_btn.pack(side='left')
+
+        ttk.Separator(body).pack(fill='x', pady=12)
+        del_row = ttk.Frame(body)
+        del_row.pack(fill='x')
+        ttk.Label(del_row, text='Xóa giọng VieNeu:').pack(side='left')
+        vieneu_ids = [v.split(':', 1)[1] for v in VOICES.values()
+                      if v.startswith('vieneu:') and v != 'vieneu:default']
+        self.del_var = tk.StringVar(value=vieneu_ids[-1] if vieneu_ids else '')
+        self.del_box = ttk.Combobox(del_row, textvariable=self.del_var, values=vieneu_ids,
+                                    state='readonly', width=28)
+        self.del_box.pack(side='left', padx=8)
+        self.del_btn = ttk.Button(del_row, text='Xóa giọng', command=self.remove_voice)
+        self.del_btn.pack(side='left')
+
+        self.bar = ttk.Progressbar(body, mode='indeterminate')
+        self.bar.pack(fill='x', pady=(12, 4))
+        self.status_var = tk.StringVar(value='Sẵn sàng. Sau khi lưu, giọng sẽ xuất hiện ngay trong danh sách.')
+        ttk.Label(body, textvariable=self.status_var, wraplength=480).pack(anchor='w')
+        self.close_btn = ttk.Button(body, text='Đóng', command=self.close)
+        self.close_btn.pack(anchor='e', pady=(10, 0))
+
+        self.grab_set()
+        self.focus_set()
+        self.after(100, self.poll)
+
+    def pick_file(self):
+        path = filedialog.askopenfilename(parent=self, filetypes=[
+            ('Âm thanh', '*.mp3 *.wav *.m4a *.ogg *.flac *.aac *.opus'), ('Tất cả', '*.*')])
+        if path:
+            self.audio_var.set(path)
+            if not self.name_var.get().strip() or self.name_var.get() == 'Kể chuyện ma · Custom':
+                stem = Path(path).stem[:32].strip()
+                if stem:
+                    self.name_var.set(stem)
+
+    def _set_busy(self, busy):
+        self.busy = busy
+        state = 'disabled' if busy else 'normal'
+        self.save_btn.config(state=state)
+        self.del_btn.config(state=state)
+        self.close_btn.config(state=state)
+        if busy:
+            self.bar.start(12)
+        else:
+            self.bar.stop()
+
+    def _run_vieneu(self, args, done_select=None):
+        interpreter = BASE / '.venv-vieneu' / 'Scripts' / 'python.exe'
+        if not interpreter.exists():
+            messagebox.showerror('Chưa cài VieNeu', 'Hãy chạy Cai_VieNeu.cmd trong thư mục ứng dụng.', parent=self)
+            return
+        self._set_busy(True)
+
+        def runner():
+            try:
+                proc = subprocess.Popen(
+                    [str(interpreter), '-u', str(BASE / 'vieneu_runner.py'), *args],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
+                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                done_val = None
+                err_val = None
+                for line in proc.stdout:
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue
+                    kind = event.get('kind')
+                    if kind == 'progress':
+                        self.events.put(('progress', event['value']))
+                    elif kind == 'done':
+                        done_val = event['value']
+                    elif kind == 'error':
+                        err_val = event['value']
+                stderr = proc.stderr.read()
+                code = proc.wait()
+                if err_val:
+                    self.events.put(('error', err_val))
+                elif code or done_val is None:
+                    self.events.put(('error', (stderr or 'Không xử lý được giọng mẫu.').strip()[-600:]))
+                else:
+                    self.events.put(('done', (done_val, done_select)))
+            except Exception as exc:
+                self.events.put(('error', f'{type(exc).__name__}: {exc}'))
+
+        threading.Thread(target=runner, daemon=True).start()
+
+    def add_voice(self):
+        if self.busy:
+            return
+        audio = self.audio_var.get().strip()
+        name = self.name_var.get().strip()
+        if not audio or not Path(audio).is_file():
+            messagebox.showwarning('Thiếu file mẫu', 'Hãy chọn file âm thanh mẫu hợp lệ.', parent=self)
+            return
+        if not name:
+            messagebox.showwarning('Thiếu tên giọng', 'Hãy nhập tên cho giọng mẫu.', parent=self)
+            return
+        try:
+            start_sec = float(self.start_var.get())
+            if start_sec < 0:
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror('Mốc giây chưa đúng', 'Giây bắt đầu phải là số ≥ 0.', parent=self)
+            return
+        scratch = BASE / 'work'
+        scratch.mkdir(exist_ok=True)
+        self._spec_path = scratch / f'add_voice_{int(time.time() * 1000)}.json'
+        self._spec_path.write_text(json.dumps({
+            'name': name,
+            'audio': audio,
+            'description': self.desc_var.get().strip() or 'Giọng mẫu custom',
+            'start_sec': start_sec,
+            'denoise': bool(self.denoise_var.get()),
+        }, ensure_ascii=False), encoding='utf-8')
+        self.status_var.set('Đang nạp VieNeu và học giọng mẫu (mất khoảng 10–25 giây)…')
+        self._run_vieneu(['--add-voice', str(self._spec_path)], done_select='vieneu:' + name)
+
+    def remove_voice(self):
+        if self.busy:
+            return
+        name = self.del_var.get().strip()
+        if not name:
+            return
+        if not messagebox.askyesno('Xác nhận xóa', f'Xóa giọng "{name}" khỏi danh sách VieNeu?', parent=self):
+            return
+        self.status_var.set(f'Đang xóa giọng "{name}"…')
+        self._run_vieneu(['--remove-voice', name], done_select=None)
+
+    def poll(self):
+        if not self.winfo_exists():
+            return
+        try:
+            while True:
+                kind, value = self.events.get_nowait()
+                if kind == 'progress':
+                    self.status_var.set(value)
+                    continue
+                if hasattr(self, '_spec_path') and self._spec_path:
+                    self._spec_path.unlink(missing_ok=True)
+                    self._spec_path = None
+                self._set_busy(False)
+                if kind == 'done':
+                    name, select_id = value
+                    self.app.refresh_voices(select_id=select_id)
+                    vieneu_ids = [v.split(':', 1)[1] for v in VOICES.values()
+                                  if v.startswith('vieneu:') and v != 'vieneu:default']
+                    self.del_box.config(values=vieneu_ids)
+                    if vieneu_ids:
+                        self.del_var.set(vieneu_ids[-1])
+                    if select_id:
+                        self.status_var.set(f'Đã lưu và chọn giọng "{name}". Bạn có thể đóng hộp thoại và nghe thử ngay!')
+                    else:
+                        self.status_var.set(f'Đã xóa giọng "{name}".')
+                else:
+                    self.status_var.set('Thao tác thất bại.')
+                    messagebox.showerror('Lỗi giọng mẫu VieNeu', value, parent=self)
+        except queue.Empty:
+            pass
+        self.after(100, self.poll)
+
+    def close(self):
+        if self.busy:
+            return
+        self.grab_release()
+        self.destroy()
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -272,19 +511,28 @@ class App(tk.Tk):
         settings.pack(fill='x')
         default_voice = next((label for label, value in VOICES.items() if value == 'vieneu:Hải Đăng'), next(iter(VOICES)))
         self.voice = tk.StringVar(value=default_voice)
-        ttk.Combobox(settings, textvariable=self.voice, values=list(VOICES), state='readonly', width=48).grid(row=0, column=0, padx=5)
+        self.voice_box = ttk.Combobox(settings, textvariable=self.voice, values=list(VOICES), state='readonly', width=48)
+        self.voice_box.grid(row=0, column=0, padx=5)
         ttk.Label(settings, text='Tốc độ %').grid(row=0, column=1, padx=5)
         self.rate = tk.StringVar(value='-5')
         ttk.Spinbox(settings, from_=-50, to=100, textvariable=self.rate, width=6).grid(row=0, column=2)
         ttk.Label(settings, text='Cao độ Hz').grid(row=0, column=3, padx=5)
         self.pitch = tk.StringVar(value='0')
         ttk.Spinbox(settings, from_=-50, to=50, textvariable=self.pitch, width=6).grid(row=0, column=4)
-        self.voice_sample = ttk.Button(settings, text='▶ Nghe mẫu giọng',
+        self.ghost = tk.BooleanVar(value=False)
+        self.ghost_reverb = tk.StringVar(value='50')
+        self.ghost_bass = tk.StringVar(value='10')
+        self.ghost_stretch = tk.StringVar(value='100')
+        voice_btns = ttk.Frame(settings)
+        voice_btns.grid(row=1, column=0, columnspan=3, sticky='w', padx=5, pady=(8, 0))
+        self.voice_sample = ttk.Button(voice_btns, text='▶ Nghe mẫu giọng',
             command=lambda: self.start(True, voice_sample=True))
-        self.voice_sample.grid(row=1, column=0, sticky='w', padx=5, pady=(8, 0))
-        self.stop_audio = ttk.Button(settings, text='■ Dừng nghe', command=self.stop_playback, state='disabled')
-        self.stop_audio.grid(row=1, column=1, columnspan=2, sticky='w', pady=(8, 0))
-        ttk.Label(settings, text='VieNeu: cao độ 0').grid(row=1, column=3, columnspan=2, sticky='w')
+        self.voice_sample.pack(side='left')
+        self.stop_audio = ttk.Button(voice_btns, text='■ Dừng nghe', command=self.stop_playback, state='disabled')
+        self.stop_audio.pack(side='left', padx=6)
+        self.clone_button = ttk.Button(voice_btns, text='＋ Giọng mẫu (Clone)', command=self.open_clone_dialog)
+        self.clone_button.pack(side='left')
+        ttk.Label(settings, text='VieNeu: cao độ 0').grid(row=1, column=3, columnspan=2, sticky='w', pady=(8, 0))
         delivery = ttk.Frame(settings)
         delivery.grid(row=2, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
         ttk.Label(delivery, text='Cách đọc').pack(side='left', padx=(0, 8))
@@ -292,7 +540,12 @@ class App(tk.Tk):
         self.delivery_box = ttk.Combobox(delivery, textvariable=self.delivery,
             values=('Tự nhiên', 'Kịch tính'), state='readonly', width=12)
         self.delivery_box.pack(side='left')
-        ttk.Label(delivery, text='Đổi nhịp và ngắt nghỉ với Edge và VieNeu').pack(side='left', padx=8)
+        ttk.Label(delivery, text='Độ biểu cảm').pack(side='left', padx=(14, 6))
+        self.temperature = tk.StringVar(value='0.90')
+        self.temp_box = ttk.Spinbox(delivery, from_=0.50, to=1.20, increment=0.05, width=5,
+                                    textvariable=self.temperature)
+        self.temp_box.pack(side='left')
+        ttk.Label(delivery, text='VieNeu: 0.85–1.0 giàu nhấn nhá · Kịch tính tự đổi nhịp & hạ tông câu chốt').pack(side='left', padx=8)
         self.voice.trace_add('write', self.update_delivery)
         self.update_delivery()
         pauses = ttk.Frame(settings)
@@ -305,6 +558,19 @@ class App(tk.Tk):
         self.paragraph_pause = tk.StringVar(value='0.8')
         ttk.Spinbox(pauses, from_=0, to=10, increment=.1, width=6,
                     textvariable=self.paragraph_pause).pack(side='left', padx=8)
+        ghost = ttk.LabelFrame(settings, text='Hiệu ứng giọng ma', padding=8)
+        ghost.grid(row=4, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
+        ttk.Checkbutton(ghost, text='Bật giọng ma', variable=self.ghost).pack(side='left', padx=(0, 12))
+        ttk.Label(ghost, text='Độ vang %').pack(side='left', padx=(0, 2))
+        ttk.Spinbox(ghost, from_=0, to=100, increment=10, width=5,
+                    textvariable=self.ghost_reverb).pack(side='left', padx=(0, 12))
+        ttk.Label(ghost, text='Độ trầm dB').pack(side='left', padx=(0, 2))
+        ttk.Spinbox(ghost, from_=-20, to=20, increment=5, width=5,
+                    textvariable=self.ghost_bass).pack(side='left')
+        ttk.Label(ghost, text='Kéo dài %').pack(side='left', padx=(12, 2))
+        ttk.Spinbox(ghost, from_=100, to=500, increment=10, width=5,
+                    textvariable=self.ghost_stretch).pack(side='left')
+        ttk.Label(ghost, text='100 = bình thường; >100 = kéo dài giọng (SRT tự điều chỉnh).').pack(side='left', padx=(8, 0))
         toolbar = ttk.Frame(root)
         toolbar.pack(fill='x', pady=10)
         ttk.Button(toolbar, text='Nhập TXT / SRT', command=self.load).pack(side='left')
@@ -319,6 +585,25 @@ class App(tk.Tk):
         self.effect_button = ttk.Button(script_actions, text='＋ Hiệu ứng / khoảng nghỉ tại con trỏ',
                                        command=self.insert_effect)
         self.effect_button.pack(side='left')
+        self.mood_button = ttk.Menubutton(script_actions, text='＋ Sắc thái / Cảm xúc')
+        mood_menu = tk.Menu(self.mood_button, tearoff=0)
+        for label, marker in (
+            ('Trầm nặng / u ám  [[MOOD:tram]]', '[[MOOD:tram]] '),
+            ('Thì thầm rợn người  [[MOOD:tham]]', '[[MOOD:tham]] '),
+            ('Dồn dập / hoảng loạn  [[MOOD:gap]]', '[[MOOD:gap]] '),
+            ('Giọng ma cục bộ  [[MOOD:ma]]', '[[MOOD:ma]] '),
+            ('Trở về bình thường  [[MOOD:binhthuong]]', '[[MOOD:binhthuong]] '),
+        ):
+            mood_menu.add_command(label=label, command=lambda m=marker: self.insert_marker(m))
+        mood_menu.add_separator()
+        for label, marker in (
+            ('Thở dài (VieNeu)  [thở dài]', '[thở dài] '),
+            ('Hắng giọng (VieNeu)  [hắng giọng]', '[hắng giọng] '),
+            ('Cười nhẹ (VieNeu)  [cười]', '[cười] '),
+        ):
+            mood_menu.add_command(label=label, command=lambda m=marker: self.insert_marker(m))
+        self.mood_button['menu'] = mood_menu
+        self.mood_button.pack(side='left', padx=(8, 0))
         ttk.Button(script_actions, text='Lưu kịch bản…', command=self.save_script).pack(side='left', padx=8)
         self.replay_preview = ttk.Button(script_actions, text='▶ Nghe lại đoạn thử',
                                         command=self.play_preview, state='disabled')
@@ -356,10 +641,34 @@ class App(tk.Tk):
         self.after(100, self.poll)
 
     def update_delivery(self, *_):
-        offline = VOICES[self.voice.get()].startswith('offline:')
+        voice_id = VOICES.get(self.voice.get(), '')
+        offline = voice_id.startswith('offline:')
+        is_vieneu = voice_id.startswith('vieneu:')
         self.delivery_box.config(state='disabled' if offline else 'readonly')
+        self.temp_box.config(state='normal' if is_vieneu else 'disabled')
         if offline:
             self.delivery.set('Tự nhiên')
+
+    def insert_marker(self, marker):
+        if self.busy:
+            return
+        self.text.edit_separator()
+        self.text.insert('insert', marker)
+        self.text.edit_separator()
+        self.text.focus_set()
+
+    def refresh_voices(self, select_id=None):
+        global VOICES
+        current_id = select_id or VOICES.get(self.voice.get())
+        VOICES = load_voices()
+        self.voice_box.config(values=list(VOICES))
+        chosen = next((label for label, value in VOICES.items() if value == current_id), next(iter(VOICES)))
+        self.voice.set(chosen)
+
+    def open_clone_dialog(self):
+        if self.busy:
+            return
+        CloneVoiceDialog(self)
 
     def insert_effect(self):
         if self.busy:
@@ -420,8 +729,10 @@ class App(tk.Tk):
         self.bar.stop()
         self.preview.config(state='normal')
         self.voice_sample.config(state='normal')
+        self.clone_button.config(state='normal')
         self.generate.config(state='normal')
         self.effect_button.config(state='normal')
+        self.mood_button.config(state='normal')
         self.cancel_button.config(state='disabled')
 
     def cancel(self, timed_out=False):
@@ -518,6 +829,25 @@ class App(tk.Tk):
             messagebox.showerror('Thông số chưa đúng', 'Tốc độ: -50 đến 100. Cao độ: -50 đến 50. Nhập số nguyên.')
             return
         try:
+            temperature = float(self.temperature.get())
+            if not 0.5 <= temperature <= 1.2:
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror('Thông số chưa đúng', 'Độ biểu cảm phải từ 0.50 đến 1.20 (gợi ý 0.85–1.00).')
+            return
+        try:
+            ghost = self.ghost.get()
+            ghost_reverb = int(self.ghost_reverb.get())
+            ghost_bass = int(self.ghost_bass.get())
+            ghost_stretch = int(self.ghost_stretch.get())
+            if not 0 <= ghost_reverb <= 100 or not -20 <= ghost_bass <= 20:
+                raise ValueError()
+            if not 100 <= ghost_stretch <= 500:
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror('Thông số chưa đúng', 'Độ vang: 0–100%. Độ trầm: -20 đến +20 dB. Kéo dài: 100–500%. Nhập số nguyên.')
+            return
+        try:
             sentence_pause, paragraph_pause = float(self.sentence_pause.get()), float(self.paragraph_pause.get())
             if not (0 <= sentence_pause <= 5 and 0 <= paragraph_pause <= 10):
                 raise ValueError('Nghỉ giữa câu từ 0–5 giây, giữa đoạn từ 0–10 giây.')
@@ -561,11 +891,11 @@ class App(tk.Tk):
         if preview and not voice_sample:
             target = folder / 'audition.wav'
         if voice_sample:
-            settings = [text, voice, rate, pitch]
+            settings = [text, voice, rate, pitch, ghost, ghost_reverb, ghost_bass, ghost_stretch, round(temperature, 2)]
             if plan is not None:
                 settings.append(['story-v1', sentence_pause, paragraph_pause])
             if expressive:
-                settings.append('vieneu-pauses-v2' if voice.startswith('vieneu:') else 'expressive-v1')
+                settings.append('vieneu-expressive-v3' if voice.startswith('vieneu:') else 'expressive-v1')
             key = hashlib.sha256(json.dumps(settings).encode('utf-8')).hexdigest()
             target = folder / (key + '.mp3')
             cached = next((p for p in (target, target.with_suffix('.wav'))
@@ -589,14 +919,17 @@ class App(tk.Tk):
         self.progress_text = 'Đang nạp model / tạo giọng đọc'
         self.preview.config(state='disabled')
         self.voice_sample.config(state='disabled')
+        self.clone_button.config(state='disabled')
         self.generate.config(state='disabled')
         self.effect_button.config(state='disabled')
+        self.mood_button.config(state='disabled')
         self.cancel_button.config(state='normal')
         self.bar.start(12)
         self.status.set('Đang chuẩn bị đoạn nghe thử…' if preview else 'Đang kết nối và tạo giọng đọc…')
         self.process = mp.Process(target=worker,
             args=(self.events, text, voice, rate, pitch, str(target), expressive, plan,
-                  preview and not voice_sample), daemon=True)
+                  preview and not voice_sample, ghost, ghost_reverb, ghost_bass, ghost_stretch,
+                  temperature), daemon=True)
         try:
             self.process.start()
         except Exception as exc:

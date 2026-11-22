@@ -9,7 +9,8 @@ import wave
 from expressive_voice import run_ffmpeg, split_sentences
 
 SAMPLE_RATE = 48000
-MARKER = re.compile(r'\[\[(SFX|PAUSE):([^\]\r\n]+)\]\]')
+MARKER = re.compile(r'\[\[(SFX|PAUSE|MOOD):([^\]\r\n]+)\]\]')
+VALID_MOODS = {'binhthuong', 'normal', 'tram', 'tham', 'gap', 'ma'}
 
 
 def read_effects(folder):
@@ -27,6 +28,7 @@ def read_effects(folder):
 def script_plan(text, sentence_pause, paragraph_pause, effects):
     plan = []
     position = 0
+    current_mood = None
 
     def add_text(value):
         parts = re.split(r'(\n\s*\n)', value)
@@ -41,7 +43,10 @@ def script_plan(text, sentence_pause, paragraph_pause, effects):
             for sentence in split_sentences(part.strip()):
                 if '[[' in sentence or ']]' in sentence:
                     raise ValueError('Dấu hiệu ứng chưa đúng. Hãy xóa và chèn lại bằng hộp thoại.')
-                plan.append({'kind': 'speech', 'text': sentence})
+                speech = {'kind': 'speech', 'text': sentence}
+                if current_mood:
+                    speech['mood'] = current_mood
+                plan.append(speech)
                 if sentence_pause:
                     plan.append({'kind': 'pause', 'seconds': sentence_pause, 'auto': True})
 
@@ -55,6 +60,11 @@ def script_plan(text, sentence_pause, paragraph_pause, effects):
             if plan and plan[-1].get('auto'):
                 plan.pop()
             plan.append({'kind': 'pause', 'seconds': seconds})
+        elif kind == 'MOOD':
+            mood = value.strip().lower()
+            if mood not in VALID_MOODS:
+                raise ValueError(f'Sắc thái "{value}" chưa hỗ trợ. Dùng: tram, tham, gap, ma, binhthuong.')
+            current_mood = None if mood in ('binhthuong', 'normal') else mood
         else:
             effect_id, volume = value.rsplit(':', 1)
             volume = int(volume)
@@ -164,7 +174,7 @@ def render_story(plan, target, render_speech, progress=None, preview=False):
                     progress(f'{index+1}/{len(plan)} · ' + item.get('text', item.get('name', '')))
                 cues = []
                 if kind == 'speech':
-                    audio, cues = render_speech(item['text'], stage / f'speech_{index}.mp3')
+                    audio, cues = render_speech(item['text'], stage / f'speech_{index}.mp3', item)
                 else:
                     audio = Path(item['path'])
                 args = ['-i', str(audio), '-vn']

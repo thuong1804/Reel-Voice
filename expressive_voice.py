@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import wave
+from pathlib import Path
 from typing import NamedTuple
 
 
@@ -59,6 +60,121 @@ def narration_beats(text, group_regular=True):
 def cleanup_expressive(target):
     for suffix in PART_SUFFIXES:
         target.with_suffix(suffix).unlink(missing_ok=True)
+
+
+def apply_ghost_effect(audio_path, reverb_percent, bass_db):
+    """Áp dụng hiệu ứng giọng ma (vàng + trầm) lên file âm thanh đã tạo.
+
+    - Độ vang: dùng aecho (echo trôi)에 các độ trễ ngắn tạo cảm giác réo, âm diffused.
+    - Độ trầm: dùng bass EQ tăng/cắt tần số thấp quanh 100 Hz.
+    Không thay đổi thời lượng -> mốc phụ đề (SRT) vẫn giữ nguyên.
+    """
+    ffmpeg = shutil.which('ffmpeg')
+    if not ffmpeg:
+        raise RuntimeError('Cần cài FFmpeg để áp dụng hiệu ứng giọng ma.')
+
+    reverb = max(0, min(100, int(reverb_percent))) / 100.0
+    bass = max(-20, min(20, int(bass_db)))
+
+    filters = []
+    if bass != 0:
+        filters.append(f'bass=g={bass}:f=100:w=2')
+    if reverb > 0:
+        delays = '60|120|180|240|320|400'
+        decays = '|'.join(f'{0.7 * reverb * (0.72 ** i):.2f}' for i in range(6))
+        filters.append(f'aecho=0.8:0.9:{delays}:{decays}')
+
+    if not filters:
+        return audio_path
+
+    filter_str = ','.join(filters)
+    audio_path = Path(audio_path)
+    tmp = audio_path.with_name(audio_path.stem + '.ghost' + audio_path.suffix)
+    try:
+        run_ffmpeg(ffmpeg, ['-y', '-i', str(audio_path), '-af', filter_str, str(tmp)])
+        tmp.replace(audio_path)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return audio_path
+
+
+def scale_srt_file(srt_path, factor):
+    """Đổi scale mọi mốc thời gian trong file SRT theo hệ số factor."""
+    text = srt_path.read_text(encoding='utf-8-sig')
+
+    def repl(m):
+        h, mn, s, ms = (int(g) for g in m.groups())
+        total = h * 3600 + mn * 60 + s + ms / 1000.0
+        total *= factor
+        h = int(total // 3600)
+        mn = int((total % 3600) // 60)
+        s = int(total % 60)
+        ms = int(round((total - int(total)) * 1000))
+        if ms >= 1000:
+            s += 1
+            ms = 0
+        if s >= 60:
+            mn += 1
+            s = 0
+        if mn >= 60:
+            h += 1
+            mn = 0
+        return f'{h:02}:{mn:02}:{s:02},{ms:03}'
+
+    text = re.sub(r'(\d{2}):(\d{2}):(\d{2}),(\d{3})', repl, text)
+    srt_path.write_text(text, encoding='utf-8-sig')
+
+
+def apply_stretch(audio_path, srt_path, stretch_percent):
+    """Kéo dài âm thanh bằng atempo (FFmpeg) rồi scale lại mốc phụ đề SRT.
+
+    stretch_percent: 100 = bình thường, 150 = dài gấp 1.5 lần, 200 = dài gấp 2 lần…
+    atempo mỗi instancia chỉ chấp nhận 0.5–2.0, nên chain nhiều instancia nếu cần.
+    """
+    ffmpeg = shutil.which('ffmpeg')
+    ffprobe = shutil.which('ffprobe')
+    if not ffmpeg or not ffprobe:
+        raise RuntimeError('Cần FFmpeg/FFprobe để kéo dài giọng.')
+
+    stretch = max(100, min(500, int(stretch_percent))) / 100.0
+    if stretch <= 1.0:
+        return
+
+    def probe_duration(path):
+        result = subprocess.run(
+            [ffprobe, '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
+            capture_output=True, text=True,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        return float(result.stdout.strip() or '0')
+
+    old_duration = probe_duration(audio_path)
+
+    tempo = 1.0 / stretch
+    filters = []
+    remaining = tempo
+    while remaining < 0.5:
+        filters.append('atempo=0.5')
+        remaining /= 0.5
+    while remaining > 2.0:
+        filters.append('atempo=2.0')
+        remaining /= 2.0
+    filters.append(f'atempo={remaining:.4f}')
+
+    audio_path = Path(audio_path)
+    tmp = audio_path.with_name(audio_path.stem + '.stretch' + audio_path.suffix)
+    try:
+        run_ffmpeg(ffmpeg, ['-y', '-i', str(audio_path), '-af', ','.join(filters), str(tmp)])
+        tmp.replace(audio_path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+    new_duration = probe_duration(audio_path)
+    factor = new_duration / old_duration if old_duration > 0 else stretch
+
+    srt_path = Path(srt_path)
+    if srt_path.exists():
+        scale_srt_file(srt_path, factor)
 
 
 def run_ffmpeg(ffmpeg, args, data=None):
