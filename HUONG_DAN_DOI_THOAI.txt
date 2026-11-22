@@ -1,0 +1,43 @@
+REEL VOICE — ĐỐI THOẠI NHÂN VẬT VÀ GIỌNG HỒN MA
+
+1. Mở Mo_ReelVoice.cmd hoặc Mo_Giao_Dien.vbs trong thư mục ứng dụng.
+2. Bấm “Nhân vật / giọng hồn ma…”.
+   Mặc định Nam dùng Hải Đăng, Nữ dùng Trúc Ly nếu đã có giọng VieNeu.
+   Nếu chưa có hai giọng này, dùng Nam Minh / Hoài My của Edge.
+   Vai Nữ có sẵn hiệu ứng Hồn ma và tốc độ -12%.
+3. Có thể đổi tên vai, giọng đọc, tốc độ, cách đọc và mức hiệu ứng.
+   Bấm “Lưu thiết lập”, hoặc “Chèn mẫu đối thoại & lưu” để chèn tại con trỏ.
+   Nếu đang bôi đen, mẫu sẽ thay phần đang chọn. Có thể Ctrl+Z để hoàn tác.
+4. Viết tên vai ở đầu dòng, sau đó là dấu hai chấm:
+
+[Nam]: Ai đang ở ngoài cửa vậy?
+
+[Nữ]: Anh… không nhớ em sao?
+
+[Nam]: Nhưng em đã mất rồi mà…
+
+[Nữ — hồn ma]: Em vẫn luôn ở đây. Chờ anh trở về.
+
+5. Bôi đen phần cần nghe và bấm “Nghe đoạn đang chọn”.
+   Chọn giữa câu vẫn nhận đúng nhân vật đang nói.
+6. Bấm “Xuất toàn bộ MP3 + SRT”. TXT xuất kèm giữ tên vai.
+
+QUY TẮC
+- Tên trong ngoặc phải khớp tên trong thiết lập; không phân biệt chữ hoa/thường.
+- Một vai được giữ đến tên vai kế tiếp, kể cả qua dòng trống.
+- Lời trước tên vai đầu tiên dùng giọng ở cửa sổ chính.
+- Không đọc tên vai hoặc chỉ dẫn hiệu ứng vào âm thanh hay phụ đề.
+- [Nữ — tự nhiên]: tắt hiệu ứng cho lượt đó.
+- [Nữ — hồn ma]: bật Hồn ma cho lượt đó, dùng mức hiệu ứng đã chọn.
+- Không cần chỉ dẫn trong ngoặc nếu muốn dùng hiệu ứng mặc định của vai.
+- Mức hiệu ứng 0% giữ âm thanh gốc. Có thể bắt đầu ở 50–65%.
+- Vẫn dùng được [[PAUSE:1.0]] và hiệu ứng chèn từ thư viện.
+
+Giọng hồn ma dùng lớp giọng trầm lệch nhẹ và các tiếng vang phía sau lời gốc.
+Đây là hiệu ứng âm thanh, không ép bộ TTS diễn thì thầm.
+Phần đuôi vang được giữ lại trước lượt tiếp theo; phụ đề dựa vào âm thanh thực.
+Cần FFmpeg. Hai vai VieNeu dùng chung một lần nạp model.
+Nếu trộn VieNeu với Edge/offline, việc chuyển bộ tạo giọng có thể chậm hơn.
+
+Thiết lập vai được lưu ở outputs/characters.json bên trong thư mục ứng dụng.
+Kịch bản không có tên vai tiếp tục dùng giọng đã chọn ở cửa sổ chính.

@@ -1,0 +1,16 @@
+[[BEAT:HOOK]]
+
+
+[[BEAT:NEO]]
+
+
+[[BEAT:LEO1]]
+
+
+[[BEAT:LEO2]]
+
+
+[[BEAT:CLIMAX]]
+
+
+[[BEAT:END]]

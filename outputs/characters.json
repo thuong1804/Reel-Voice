@@ -1,0 +1,18 @@
+{
+  "Nam": {
+    "voice": "vieneu:Thiền Tâm Đức",
+    "rate": -5,
+    "pitch": 0,
+    "expressive": false,
+    "voice_effect": "none",
+    "effect_strength": 65
+  },
+  "Nữ": {
+    "voice": "vieneu:Thùy Dung",
+    "rate": -12,
+    "pitch": 0,
+    "expressive": true,
+    "voice_effect": "ghost",
+    "effect_strength": 75
+  }
+}

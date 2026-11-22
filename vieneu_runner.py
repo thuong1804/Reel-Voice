@@ -184,6 +184,54 @@ def handle_remove_voice(tts, voice_name):
     emit('done', name)
 
 
+def render_vieneu_story(tts, default_voice, job):
+    """Load the model once, switching preset voices between character turns."""
+    import inspect
+    import numpy as np
+    import soundfile as sf
+
+    ffmpeg = shutil.which('ffmpeg')
+    base_temp = float(job.get('temperature', 0.85))
+    default_expressive = bool(job.get('expressive', False))
+    infer_params = inspect.signature(tts.infer).parameters
+    supports_sampling = ('temperature' in infer_params or
+                         any(p.kind == inspect.Parameter.VAR_KEYWORD for p in infer_params.values()))
+
+    def render_sentence(sentence, destination, item=None):
+        item = item if isinstance(item, dict) else {}
+        selected_voice = item.get('voice', 'vieneu:' + default_voice)
+        if not selected_voice.startswith('vieneu:'):
+            raise ValueError('Tác vụ VieNeu nhận giọng không đúng loại.')
+        selected_voice = selected_voice.split(':', 1)[1]
+        if selected_voice == 'default':
+            selected_voice = default_voice
+        mood = item.get('mood')
+        item_expressive = bool(item.get('expressive', default_expressive))
+        speed_mul, pitch_st, temp, extra_filters, gain_db = sentence_profile(
+            sentence, base_temp, item_expressive, mood=mood)
+        infer_kwargs = {'voice': selected_voice}
+        if supports_sampling:
+            infer_kwargs.update(temperature=temp, top_k=30, top_p=0.95)
+        audio = np.asarray(
+            tts.infer(unicodedata.normalize('NFC', sentence), **infer_kwargs),
+            dtype=np.float32).reshape(-1)
+        if not audio.size:
+            raise RuntimeError('VieNeu không trả về âm thanh cho câu vừa đọc.')
+        raw = destination.with_suffix('.wav')
+        tts.save(audio, str(raw))
+        info = sf.info(str(raw))
+        rate = item.get('rate', job['rate'])
+        base_speed = 1 + rate / 100
+        final_wav = apply_sentence_filters(
+            ffmpeg, raw, destination.with_suffix('.adjusted.wav'),
+            info.samplerate, base_speed * speed_mul, pitch_st, extra_filters, gain_db=gain_db)
+        duration = sf.info(str(final_wav)).duration
+        return final_wav, [(0, duration, sentence)]
+
+    return render_story(job['story_plan'], Path(job['target']), render_sentence,
+                        lambda value: emit('progress', value), preview=job.get('audition', False))
+
+
 def main():
     import numpy as np
     import soundfile as sf
@@ -214,27 +262,7 @@ def main():
     ffmpeg = shutil.which('ffmpeg')
 
     if job.get('story_plan') is not None:
-        def render_sentence(sentence, destination, item=None):
-            mood = item.get('mood') if isinstance(item, dict) else None
-            speed_mul, pitch_st, temp, extra_filters, gain_db = sentence_profile(
-                sentence, base_temp, expressive, mood=mood)
-            audio = np.asarray(
-                tts.infer(unicodedata.normalize('NFC', sentence), voice=voice,
-                          temperature=temp, top_k=30, top_p=0.95),
-                dtype=np.float32).reshape(-1)
-            if not audio.size:
-                raise RuntimeError('VieNeu không trả về âm thanh cho câu vừa đọc.')
-            raw = destination.with_suffix('.wav')
-            tts.save(audio, str(raw))
-            info = sf.info(str(raw))
-            final_wav = apply_sentence_filters(
-                ffmpeg, raw, destination.with_suffix('.adjusted.wav'),
-                info.samplerate, base_speed * speed_mul, pitch_st, extra_filters, gain_db=gain_db)
-            duration = sf.info(str(final_wav)).duration
-            return final_wav, [(0, duration, sentence)]
-
-        output = render_story(job['story_plan'], target, render_sentence,
-                              lambda value: emit('progress', value), preview=job.get('audition', False))
+        output = render_vieneu_story(tts, voice, job)
         (BASE / '.vieneu_ready').write_text('v3turbo CPU ready', encoding='utf-8')
         emit('done', str(output))
         return
