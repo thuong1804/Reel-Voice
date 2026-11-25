@@ -6,12 +6,14 @@
       "key": "HOOK",
       "target_start": 0,
       "voice_seconds": 4,
-      "natural_speech_seconds": 4.08,
+      "natural_speech_seconds": 6.72,
       "pause_seconds": 0.16,
-      "words": 12,
-      "min_tempo": 1.038,
-      "max_tempo": 1.121,
-      "warnings": [],
+      "words": 21,
+      "min_tempo": 1.698,
+      "max_tempo": 1.833,
+      "warnings": [
+        "Lời đọc cần đổi tốc độ nhiều; cân nhắc chỉnh số từ của nhịp."
+      ],
       "actual_start": 0.0,
       "actual_end": 4.0
     },
@@ -19,12 +21,14 @@
       "key": "NEO",
       "target_start": 4,
       "voice_seconds": 10,
-      "natural_speech_seconds": 8.8,
-      "pause_seconds": 0.56,
-      "words": 26,
-      "min_tempo": 0.932,
-      "max_tempo": 0.932,
-      "warnings": [],
+      "natural_speech_seconds": 10.56,
+      "pause_seconds": 0.23,
+      "words": 33,
+      "min_tempo": 1.081,
+      "max_tempo": 1.081,
+      "warnings": [
+        "Có câu dài hơn 14 từ."
+      ],
       "actual_start": 4.0,
       "actual_end": 14.0
     },
@@ -32,12 +36,14 @@
       "key": "LEO1",
       "target_start": 14,
       "voice_seconds": 10,
-      "natural_speech_seconds": 10.4,
-      "pause_seconds": 0.55,
-      "words": 29,
-      "min_tempo": 1.101,
-      "max_tempo": 1.101,
-      "warnings": [],
+      "natural_speech_seconds": 10.64,
+      "pause_seconds": 0.37,
+      "words": 31,
+      "min_tempo": 1.105,
+      "max_tempo": 1.105,
+      "warnings": [
+        "Có câu dài hơn 14 từ."
+      ],
       "actual_start": 14.0,
       "actual_end": 24.0
     },
@@ -45,11 +51,11 @@
       "key": "LEO2",
       "target_start": 24,
       "voice_seconds": 11,
-      "natural_speech_seconds": 11.44,
-      "pause_seconds": 0.46,
+      "natural_speech_seconds": 10.48,
+      "pause_seconds": 0.34,
       "words": 31,
-      "min_tempo": 1.085,
-      "max_tempo": 1.085,
+      "min_tempo": 0.983,
+      "max_tempo": 0.983,
       "warnings": [
         "LEO 2 có câu từ 8 từ trở lên; khung đề nghị câu ngắn hơn."
       ],
@@ -60,12 +66,14 @@
       "key": "CLIMAX",
       "target_start": 35,
       "voice_seconds": 12,
-      "natural_speech_seconds": 11.2,
-      "pause_seconds": 1.04,
-      "words": 32,
-      "min_tempo": 0.972,
-      "max_tempo": 1.05,
-      "warnings": [],
+      "natural_speech_seconds": 15.44,
+      "pause_seconds": 0.62,
+      "words": 48,
+      "min_tempo": 1.357,
+      "max_tempo": 1.357,
+      "warnings": [
+        "Có câu dài hơn 14 từ."
+      ],
       "actual_start": 35.0,
       "actual_end": 47.0
     },
@@ -73,12 +81,14 @@
       "key": "END",
       "target_start": 47,
       "voice_seconds": 8,
-      "natural_speech_seconds": 9.2,
-      "pause_seconds": 0.3,
-      "words": 27,
-      "min_tempo": 1.131,
-      "max_tempo": 1.221,
-      "warnings": [],
+      "natural_speech_seconds": 9.84,
+      "pause_seconds": 0.1,
+      "words": 32,
+      "min_tempo": 1.21,
+      "max_tempo": 1.307,
+      "warnings": [
+        "Có câu dài hơn 14 từ."
+      ],
       "actual_start": 47.0,
       "actual_end": 55.0
     }
