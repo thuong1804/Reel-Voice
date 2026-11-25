@@ -1030,9 +1030,9 @@ class App(tk.Tk):
             if short:
                 settings.append(SHORT_VERSION)
             if plan is not None:
-                settings.append(['story-v1', sentence_pause, paragraph_pause])
+                settings.append(['story-v2-mood-contours', sentence_pause, paragraph_pause])
             if expressive:
-                settings.append('vieneu-expressive-v3' if voice.startswith('vieneu:') else 'expressive-v1')
+                settings.append('vieneu-expressive-v4' if voice.startswith('vieneu:') else 'expressive-v1')
             key = hashlib.sha256(json.dumps(settings).encode('utf-8')).hexdigest()
             target = folder / (key + '.mp3')
             cached = next((p for p in (target, target.with_suffix('.wav'))

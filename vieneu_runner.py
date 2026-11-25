@@ -43,35 +43,45 @@ def atempo_filters(tempo):
     return filters
 
 
-def sentence_profile(sentence, base_temp, expressive, mood=None):
-    """Return (speed_mul, pitch_semitones, temperature, extra_filters, gain_db) for a sentence."""
-    temp = max(0.5, min(1.2, float(base_temp)))
-    if mood == 'tram':
-        return 0.92, -1.2, temp, ['bass=g=4:f=110:w=2'], 0.0
-    if mood == 'tham':
-        return (0.88, -0.5, min(1.1, temp + 0.08),
-                ['highpass=f=150', 'treble=g=4:f=3500:w=2',
-                 'aecho=0.8:0.88:45|90:0.20|0.12'], -1.0)
-    if mood == 'gap':
-        return 1.09, 0.6, min(1.15, temp + 0.12), [], 1.0
-    if mood == 'ma':
-        return (0.80, -2.0, temp,
-                ['bass=g=6:f=100:w=2',
-                 'aecho=0.8:0.9:60|120|180|240|320:0.40|0.28|0.20|0.14|0.09'], 0.0)
-    if not expressive:
-        return 1.0, 0.0, temp, [], 0.0
-
+def _sentence_contour(sentence, temp):
+    """Return restrained punctuation cues before adding a mood's tonal base."""
     stripped = sentence.strip().rstrip('"”’»')
     words = re.findall(r"\b\w+(?:['’-]\w+)*\b", stripped)
     if stripped.endswith('?'):
         return 0.94, 0.4, min(1.1, temp + 0.08), [], 0.0
     if stripped.endswith('!'):
         return 1.05, 0.3, min(1.15, temp + 0.12), [], 1.0
-    if len(words) <= 6:
-        return 0.90, -1.0, min(1.1, temp + 0.08), ['bass=g=2.5:f=110:w=2'], 0.0
+    # Suspension is intentional even in a short phrase.
     if stripped.endswith(('...', '…')):
         return 0.93, -0.5, min(1.1, temp + 0.05), [], 0.0
+    if len(words) <= 6:
+        return 0.90, -1.0, min(1.1, temp + 0.08), ['bass=g=2.5:f=110:w=2'], 0.0
     return 1.0, 0.0, temp, [], 0.0
+
+
+def sentence_profile(sentence, base_temp, expressive, mood=None):
+    """Combine a mood's base with sentence cues instead of flattening its delivery."""
+    temp = max(0.5, min(1.2, float(base_temp)))
+    profiles = {
+        'tram': (0.92, -1.2, temp, ['bass=g=4:f=110:w=2'], 0.0),
+        'tham': (0.88, -0.5, min(1.1, temp + 0.08),
+                 ['highpass=f=150', 'treble=g=4:f=3500:w=2',
+                  'aecho=0.8:0.88:45|90:0.20|0.12'], -1.0),
+        'gap': (1.09, 0.6, min(1.15, temp + 0.12), [], 1.0),
+        'ma': (0.80, -2.0, temp,
+               ['bass=g=6:f=100:w=2',
+                'aecho=0.8:0.9:60|120|180|240|320:0.40|0.28|0.20|0.14|0.09'], 0.0),
+    }
+    profile = profiles.get(mood)
+    if profile is None:
+        return _sentence_contour(sentence, temp) if expressive else (1.0, 0.0, temp, [], 0.0)
+
+    # Explicit MOOD is an instruction even in Natural/Short delivery. Half-strength
+    # contours keep its character without doubling the bass or exaggerating it.
+    speed, pitch, sampling, filters, gain = profile
+    cue_speed, cue_pitch, cue_temp, _, cue_gain = _sentence_contour(sentence, temp)
+    return (speed * (1 + (cue_speed - 1) * 0.5), pitch + cue_pitch * 0.5,
+            max(sampling, cue_temp), filters, gain + cue_gain * 0.5)
 
 
 def match_loudness(src_wav, dst_wav, gain_db=0.0):
