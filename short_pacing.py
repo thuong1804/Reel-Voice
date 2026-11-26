@@ -7,6 +7,7 @@ from expressive_voice import run_ffmpeg
 STYLE = 'Short tâm linh · 6 nhịp'
 VERSION = 'short-55-v1'
 SAMPLE_RATE = 48000
+MAX_TEMPO = 1.15
 SPECS = (
     dict(key='HOOK', label='HOOK', start=0, end=4, sentence=.08, paragraph=.10, transition=.08,
          note='Dứt khoát, nối ngay sang vật thể; không nghỉ dài sau hook.'),
@@ -174,6 +175,7 @@ def prepare_audio(plan, stage, render_speech, ffmpeg, progress=None):
         total_weight = sum(weighted)
         target_frames = round((target - pause_seconds) * SAMPLE_RATE)
         cumulative, allocated, tempos = 0, 0, []
+        speed_clamped = False
         for (index, item, pcm, cues), weight in zip(chunks, weighted):
             cumulative += weight
             end_frame = round(target_frames * cumulative / total_weight)
@@ -181,6 +183,10 @@ def prepare_audio(plan, stage, render_speech, ffmpeg, progress=None):
             allocated = end_frame
             native_frames = len(pcm) // 2
             factor = native_frames / frames
+            if factor > MAX_TEMPO:
+                factor = MAX_TEMPO
+                frames = max(1, round(native_frames / factor))
+                speed_clamped = True
             filters = _tempo_chain(factor)
             if item['short_gain_db']:
                 filters += [f'volume={item["short_gain_db"]}dB', 'alimiter=limit=0.97:level=0:latency=1']
@@ -194,8 +200,8 @@ def prepare_audio(plan, stage, render_speech, ffmpeg, progress=None):
             prepared[index] = (processed, [(start*scale, end*scale, text) for start, end, text in cues])
             tempos.append(factor)
         warnings = []
-        if tempos and (min(tempos) < .6 or max(tempos) > 1.6):
-            warnings.append('Lời đọc cần đổi tốc độ nhiều; cân nhắc chỉnh số từ của nhịp.')
+        if speed_clamped or (tempos and (min(tempos) < .6 or max(tempos) > 1.6)):
+            warnings.append('Lời đọc dài hơn khung nhịp; đã giới hạn tốc độ để tránh đọc quá nhanh.')
         if any(word_count(item['text']) > 14 for _, item, _, _ in chunks):
             warnings.append('Có câu dài hơn 14 từ.')
         if key == 'LEO2' and any(word_count(item['text']) >= 8 for _, item, _, _ in chunks):
