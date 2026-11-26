@@ -149,7 +149,11 @@ def script_excerpt(text, start, end=None):
         end = max(start, min(end, len(text)))
     for turn in inline_turns(text):
         if turn['content_start'] <= start < end <= turn['content_end']:
-            return f'[[VOICE:{turn["voice"]}]]"' + text[start:end] + '"'
+            # Inline mood has the same local scope as when exporting this turn.
+            preceding = list(MARKER.finditer(text[turn['content_start']:start]))
+            moods = [marker for marker in preceding if marker.group(1) == 'MOOD']
+            content = (moods[-1].group(0) + ' ' if moods else '') + text[start:end]
+            return f'[[VOICE:{turn["voice"]}]]"' + content + '"'
         if turn['start'] < start < turn['end']:
             start = turn['start']
         if turn['start'] < end < turn['end']:
@@ -164,6 +168,14 @@ def script_excerpt(text, start, end=None):
     headers = list(re.finditer(CHARACTER_HEADER, text[:start], re.MULTILINE))
     if excerpt and headers and not re.match(CHARACTER_HEADER, excerpt):
         excerpt = headers[-1].group(0).strip() + ' ' + excerpt
+    # Keep the active narrator mood for selection/current-paragraph previews.
+    # A mood inside an inline character turn must not leak back to the narrator.
+    turns = inline_turns(text)
+    moods = [marker for marker in MARKER.finditer(text[:start])
+             if marker.group(1) == 'MOOD'
+             and not any(turn['start'] <= marker.start() < turn['end'] for turn in turns)]
+    if excerpt and moods:
+        excerpt = moods[-1].group(0) + ' ' + excerpt
     return excerpt
 
 

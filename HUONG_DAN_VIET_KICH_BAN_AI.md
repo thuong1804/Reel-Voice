@@ -138,3 +138,9 @@ Chủ đề hôm nay: [NHẬP CHỦ ĐỀ / Ý TƯỞNG TRUYỆN MA CỦA BẠN 
 - [ ] Có ít nhất 2–3 lần chuyển đổi sắc thái để tạo độ tương phản (không giữ 1 mood suốt bài).
 - [ ] Câu chốt cuối ngắn gọn, có khoảng nghỉ `[[PAUSE:...]]` lấy đà trước khi hạ màn.
 
+## Ngữ điệu trong mỗi mood
+
+- MOOD đặt nền giọng; dấu ?, !, ... và câu ngắn vẫn điều chỉnh nhẹ nhịp, cao độ và sampling. Áp dụng cả khi chọn Tự nhiên hoặc Short với mood tường minh.
+- Nghe thử đoạn bôi đen hoặc đoạn tại con trỏ giữ mood đang có hiệu lực; binhthuong vẫn reset mood.
+- VieNeu v3 Turbo hỗ trợ [cười], [thở dài], [hắng giọng]. Không đổi sang thẻ cảm xúc tự do của hệ thống khác.
+- Đây là điều chỉnh suy luận và hậu kỳ, chưa phải train lại model. Phong cách gốc vẫn phụ thuộc giọng/reference; temperature chỉ điều khiển độ biến thiên sampling.
