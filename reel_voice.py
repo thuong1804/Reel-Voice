@@ -544,7 +544,7 @@ class App(tk.Tk):
         self.voice_box = ttk.Combobox(settings, textvariable=self.voice, values=list(VOICES), state='readonly', width=48)
         self.voice_box.grid(row=0, column=0, padx=5)
         ttk.Label(settings, text='Tốc độ %').grid(row=0, column=1, padx=5)
-        self.rate = tk.StringVar(value='-5')
+        self.rate = tk.StringVar(value='-12')
         self.rate_box = ttk.Spinbox(settings, from_=-50, to=100, textvariable=self.rate, width=6)
         self.rate_box.grid(row=0, column=2)
         ttk.Label(settings, text='Cao độ Hz').grid(row=0, column=3, padx=5)
@@ -568,7 +568,7 @@ class App(tk.Tk):
         delivery = ttk.Frame(settings)
         delivery.grid(row=2, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
         ttk.Label(delivery, text='Cách đọc').pack(side='left', padx=(0, 8))
-        self.delivery = tk.StringVar(value=SHORT_STYLE)
+        self.delivery = tk.StringVar(value='Kịch tính')
         self._short_selected = False
         self.delivery_box = ttk.Combobox(delivery, textvariable=self.delivery,
             values=('Tự nhiên', 'Kịch tính', SHORT_STYLE), state='readonly', width=23)
@@ -586,12 +586,12 @@ class App(tk.Tk):
         pauses = ttk.Frame(settings)
         pauses.grid(row=3, column=0, columnspan=5, sticky='w', padx=5, pady=(8, 0))
         ttk.Label(pauses, text='Nghỉ giữa câu (giây)').pack(side='left')
-        self.sentence_pause = tk.StringVar(value='0.35')
+        self.sentence_pause = tk.StringVar(value='0.45')
         self.sentence_pause_box = ttk.Spinbox(pauses, from_=0, to=5, increment=.05, width=6,
                                              textvariable=self.sentence_pause)
         self.sentence_pause_box.pack(side='left', padx=(8, 18))
         ttk.Label(pauses, text='Nghỉ giữa đoạn (giây)').pack(side='left')
-        self.paragraph_pause = tk.StringVar(value='0.8')
+        self.paragraph_pause = tk.StringVar(value='0.9')
         self.paragraph_pause_box = ttk.Spinbox(pauses, from_=0, to=10, increment=.1, width=6,
                                               textvariable=self.paragraph_pause)
         self.paragraph_pause_box.pack(side='left', padx=8)
@@ -682,7 +682,7 @@ class App(tk.Tk):
         self.bar = ttk.Progressbar(root, mode='indeterminate')
         self.bar.pack(fill='x')
         self.status = tk.StringVar(value=character_warning or
-                                   'Sẵn sàng. Short tâm linh: 6 nhịp / 55 giây. Mở Khung 55 giây để xem cấu hình.')
+                                   'Sẵn sàng. Chế độ Kịch tính (tốc độ -12%, đọc chậm có nhấn nhá). Có thể chỉnh Tốc độ % trực tiếp.')
         ttk.Label(root, textvariable=self.status, wraplength=900).pack(anchor='w', pady=7)
         self.table = ttk.Treeview(root, columns=('id','content'), show='headings', height=5)
         self.table.heading('id', text='Đoạn')

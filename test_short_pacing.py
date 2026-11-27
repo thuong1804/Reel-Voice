@@ -177,9 +177,13 @@ class EditorTests(unittest.TestCase):
             app = reel_voice.App()
             app.withdraw()
             try:
-                self.assertEqual(app.delivery.get(), STYLE)
-                self.assertEqual(str(app.rate_box['state']), 'disabled')
+                self.assertEqual(app.delivery.get(), 'Kịch tính')
+                self.assertEqual(str(app.rate_box['state']), 'normal')
+                self.assertEqual(app.rate.get(), '-12')
+                self.assertEqual(app.sentence_pause.get(), '0.45')
                 self.assertEqual(app.text.get('1.0', 'end-1c'), '')
+                app.delivery.set(STYLE)
+                self.assertEqual(str(app.rate_box['state']), 'disabled')
                 app.text.insert('1.0', SAMPLE)
                 text = app.text.get('1.0', 'end-1c')
                 offset = text.index('Tóc tôi đen')
@@ -192,7 +196,7 @@ class EditorTests(unittest.TestCase):
                     app.cancel()
                 app.delivery.set('Tự nhiên')
                 self.assertEqual(str(app.rate_box['state']), 'normal')
-                self.assertEqual(app.sentence_pause.get(), '0.35')
+                self.assertEqual(app.sentence_pause.get(), '0.45')
             finally:
                 app.destroy()
 
