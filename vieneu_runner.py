@@ -194,6 +194,34 @@ def handle_remove_voice(tts, voice_name):
     emit('done', name)
 
 
+def infer_ghost(tts, sentence, ffmpeg, scratch, **kwargs):
+    """Đọc câu; từ có ~ (vd: tôi~~~) được kéo dài như hồn ma gọi."""
+    import numpy as np
+    import soundfile as sf
+    from expressive_voice import ghost_stretch_pcm, split_stretch_text
+
+    pieces = split_stretch_text(sentence)
+    if not any(factor > 1 for _, factor in pieces):
+        return np.asarray(tts.infer(unicodedata.normalize('NFC', sentence), **kwargs),
+                          dtype=np.float32).reshape(-1)
+    if not ffmpeg:
+        raise RuntimeError('Cần FFmpeg để kéo dài giọng bằng dấu ~.')
+    parts = []
+    for text, factor in pieces:
+        audio = np.asarray(tts.infer(unicodedata.normalize('NFC', text), **kwargs),
+                           dtype=np.float32).reshape(-1)
+        if factor > 1:
+            tts.save(audio, str(scratch))
+            data, rate = sf.read(str(scratch), dtype='float32')
+            scratch.unlink(missing_ok=True)
+            if data.ndim > 1:
+                data = data.mean(axis=1)
+            raw = ghost_stretch_pcm(ffmpeg, data.astype(np.float32).tobytes(), factor, rate, 'f32le')
+            audio = np.frombuffer(raw, dtype=np.float32).copy()
+        parts.append(audio)
+    return np.concatenate(parts)
+
+
 def render_vieneu_story(tts, default_voice, job):
     """Load the model once, switching preset voices between character turns."""
     import inspect
@@ -222,9 +250,8 @@ def render_vieneu_story(tts, default_voice, job):
         infer_kwargs = {'voice': selected_voice}
         if supports_sampling:
             infer_kwargs.update(temperature=temp, top_k=30, top_p=0.95)
-        audio = np.asarray(
-            tts.infer(unicodedata.normalize('NFC', sentence), **infer_kwargs),
-            dtype=np.float32).reshape(-1)
+        audio = infer_ghost(tts, sentence, ffmpeg, destination.with_suffix('.ghost.wav'),
+                            **infer_kwargs)
         if not audio.size:
             raise RuntimeError('VieNeu không trả về âm thanh cho câu vừa đọc.')
         raw = destination.with_suffix('.wav')
@@ -236,7 +263,7 @@ def render_vieneu_story(tts, default_voice, job):
             ffmpeg, raw, destination.with_suffix('.adjusted.wav'),
             info.samplerate, base_speed * speed_mul, pitch_st, extra_filters, gain_db=gain_db)
         duration = sf.info(str(final_wav)).duration
-        return final_wav, [(0, duration, sentence)]
+        return final_wav, [(0, duration, sentence.replace('~', ''))]
 
     return render_story(job['story_plan'], Path(job['target']), render_sentence,
                         lambda value: emit('progress', value), preview=job.get('audition', False))
@@ -289,9 +316,8 @@ def main():
         speed_mul, pitch_st, temp, extra_filters, gain_db = sentence_profile(
             sentence, base_temp, expressive, mood=None)
         spoken_text = unicodedata.normalize('NFC', sentence)
-        audio = np.asarray(
-            tts.infer(spoken_text, voice=voice, temperature=temp, top_k=30, top_p=0.95),
-            dtype=np.float32).reshape(-1)
+        audio = infer_ghost(tts, spoken_text, ffmpeg, target.with_suffix('.ghost.wav'),
+                            voice=voice, temperature=temp, top_k=30, top_p=0.95)
         probe = target.with_suffix('.chunk.wav')
         adjusted = target.with_suffix('.chunk.adj.wav')
         tts.save(audio, str(probe))
@@ -309,7 +335,7 @@ def main():
         if not audio.size:
             raise RuntimeError(f'Không có âm thanh cho câu {i+1}.')
         duration = len(audio) / sample_rate
-        subtitles.append((elapsed, elapsed + duration, sentence))
+        subtitles.append((elapsed, elapsed + duration, sentence.replace('~', '')))
         elapsed += duration
         chunks.append(audio)
         if expressive and i + 1 < len(beats):

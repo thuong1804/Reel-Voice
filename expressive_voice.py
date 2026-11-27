@@ -17,6 +17,70 @@ class Beat(NamedTuple):
     rate_change: int
     pitch_change: int
     pause_ms: int
+    stretch: float = 1.0
+
+
+STRETCH_RE = re.compile(r"(\w+(?:['’-]\w+)*)(~+)([.!?…\"”’»]*)")
+
+
+def expand_stretch(beats):
+    """Tách từ có dấu ~ (vd: 'tôi~~~') thành beat riêng, kéo dài kiểu hồn ma gọi.
+
+    Mỗi dấu ~ cộng thêm 1x thời lượng (tôi~ = 2x, tôi~~~ = 4x).
+    """
+    result = []
+    for beat in beats:
+        pieces = []
+        pos = 0
+        for m in STRETCH_RE.finditer(beat.text):
+            before = beat.text[pos:m.start()].strip()
+            if before:
+                pieces.append(Beat(before, beat.rate_change, beat.pitch_change, 0))
+            pieces.append(Beat(m.group(1) + m.group(3), beat.rate_change - 15,
+                               beat.pitch_change - 4, 0, 1.0 + len(m.group(2))))
+            pos = m.end()
+        rest = beat.text[pos:].strip()
+        if not pieces:
+            result.append(beat)
+            continue
+        if rest:
+            pieces.append(Beat(rest, beat.rate_change, beat.pitch_change, 0))
+        last = pieces[-1]
+        pieces[-1] = last._replace(pause_ms=beat.pause_ms)
+        result.extend(pieces)
+    return result
+
+
+def split_stretch_text(text):
+    """Tách câu thành [(đoạn, hệ số kéo dài)]; từ có ~ được kéo dài."""
+    pieces, pos = [], 0
+    for m in STRETCH_RE.finditer(text):
+        before = text[pos:m.start()].strip()
+        if before:
+            pieces.append((before, 1.0))
+        pieces.append((m.group(1) + m.group(3), 1.0 + len(m.group(2))))
+        pos = m.end()
+    rest = text[pos:].strip()
+    if rest:
+        pieces.append((rest, 1.0))
+    return pieces
+
+
+def ghost_stretch_pcm(ffmpeg, pcm, stretch, sample_rate=SAMPLE_RATE, fmt='s16le'):
+    """Kéo dài PCM (giữ cao độ), thêm rung nhẹ, vang và tắt dần như tiếng gọi."""
+    filters = []
+    remaining = 1.0 / stretch
+    while remaining < 0.5:
+        filters.append('atempo=0.5')
+        remaining /= 0.5
+    filters.append(f'atempo={remaining:.4f}')
+    duration = len(pcm) / (4 if fmt == 'f32le' else 2) / sample_rate * stretch
+    filters += ['vibrato=f=4.5:d=0.25',
+                'aecho=0.8:0.85:180|360:0.35|0.2',
+                f'afade=t=out:st={max(0.0, duration - 0.8):.2f}:d=0.8']
+    return run_ffmpeg(ffmpeg, ['-f', fmt, '-ar', str(sample_rate), '-ac', '1', '-i', 'pipe:0',
+                               '-af', ','.join(filters),
+                               '-f', fmt, '-ac', '1', '-ar', str(sample_rate), 'pipe:1'], pcm)
 
 
 def split_sentences(text):
@@ -216,7 +280,7 @@ async def synthesize_expressive(text, voice, rate, pitch, target, progress=None)
     ffmpeg = shutil.which('ffmpeg')
     if not ffmpeg:
         raise RuntimeError('Cần cài FFmpeg để ghép âm thanh cho giọng kể kịch tính.')
-    beats = narration_beats(text)
+    beats = expand_stretch(narration_beats(text))
     if not beats:
         raise ValueError('Hãy nhập kịch bản.')
 
@@ -236,10 +300,15 @@ async def synthesize_expressive(text, voice, rate, pitch, target, progress=None)
                 sample_count = len(pcm) // 2
                 if not sample_count:
                     raise RuntimeError('Không đọc được đoạn âm thanh vừa tạo.')
+                scale = 1.0
+                if beat.stretch > 1.0:
+                    pcm = ghost_stretch_pcm(ffmpeg, pcm, beat.stretch)
+                    scale = (len(pcm) // 2) / sample_count
+                    sample_count = len(pcm) // 2
                 joined.writeframesraw(pcm)
                 for cue in cues:
-                    start = round(cue['offset'] * SAMPLE_RATE / 10_000_000)
-                    end = round((cue['offset'] + cue['duration']) * SAMPLE_RATE / 10_000_000)
+                    start = round(cue['offset'] * SAMPLE_RATE / 10_000_000 * scale)
+                    end = round((cue['offset'] + cue['duration']) * SAMPLE_RATE / 10_000_000 * scale)
                     end = min(end, sample_count)
                     if end > start:
                         captions.append(f'{len(captions) + 1}\n'

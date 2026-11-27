@@ -117,6 +117,7 @@ def srt_time(seconds):
     return f'{milliseconds // 3600000:02}:{milliseconds // 60000 % 60:02}:{milliseconds // 1000 % 60:02},{milliseconds % 1000:03}'
 
 def offline_synthesize(text, voice, rate, pitch, target, events):
+    text = text.replace('~', '')
     if pitch:
         events.put(('progress', 'Giọng offline dùng cao độ mặc định.'))
     sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+|\n+', text) if s.strip()]
@@ -171,6 +172,9 @@ try {
         return wav_target
 
 async def synthesize(text, voice, rate, pitch, target, progress=None):
+    from expressive_voice import STRETCH_RE
+    if STRETCH_RE.search(text):
+        return await synthesize_expressive(text, voice, rate, pitch, target, progress)
     import edge_tts
     subs = edge_tts.SubMaker()
     temporary = target.with_suffix('.mp3.part')
